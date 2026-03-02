@@ -1,0 +1,50 @@
+# ── .npmignore ─────────────────────────────────────────────────────────────────
+# Controls which files are included when installing via npm.
+# Files NOT listed here are shipped with the package.
+
+# Runtime data & secrets
+data/
+workspace/
+.env
+config.json
+
+# Development & CI
+.claude/
+.omc/
+.github/
+.serena/
+.playwright-mcp/
+tasks/
+
+# Docker (users who want Docker already have the repo cloned)
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+.dockerignore
+
+# Platform install scripts (bash-only, not used by npm)
+install/
+
+# Dev-only scripts
+scripts/release.js
+test-*.sh
+
+# Large assets not needed at runtime
+*.png
+README_RU.html
+README_RU.md
+README_UA.md
+agent-orchestrator.yaml
+
+# OS & editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*

@@ -1601,11 +1601,11 @@ class TelegramBot extends EventEmitter {
     const workdir = ctx.projectWorkdir || process.env.WORKDIR || require('path').join(process.cwd(), 'workspace');
 
     try {
-      const diff = execSync('git diff --stat HEAD 2>/dev/null || echo "Not a git repository"', {
-        cwd: workdir, encoding: 'utf-8', timeout: 5000,
+      const diff = execSync('git diff --stat HEAD', {
+        cwd: workdir, encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'],
       }).trim();
 
-      if (!diff || diff === 'Not a git repository') {
+      if (!diff) {
         await this._sendMessage(chatId, this._t('git_no_changes'));
         return;
       }
@@ -1613,7 +1613,12 @@ class TelegramBot extends EventEmitter {
       await this._sendMessage(chatId,
         `📊 <b>Git Diff</b>\n\n<pre><code>${this._escHtml(this._sanitize(diff))}</code></pre>`);
     } catch (err) {
-      await this._sendMessage(chatId, `❌ ${this._escHtml(err.message)}`);
+      const msg = (err.stderr || err.message || '').toString();
+      if (msg.includes('not a git repository') || msg.includes('fatal:')) {
+        await this._sendMessage(chatId, this._t('git_no_changes'));
+      } else {
+        await this._sendMessage(chatId, `❌ ${this._escHtml(msg.slice(0, 200))}`);
+      }
     }
   }
 
@@ -1625,11 +1630,11 @@ class TelegramBot extends EventEmitter {
     const workdir = ctx.projectWorkdir || process.env.WORKDIR || require('path').join(process.cwd(), 'workspace');
 
     try {
-      const log = execSync(`git log --oneline -${n} 2>/dev/null || echo "Not a git repository"`, {
-        cwd: workdir, encoding: 'utf-8', timeout: 5000,
+      const log = execSync(`git log --oneline -${n}`, {
+        cwd: workdir, encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'],
       }).trim();
 
-      if (!log || log === 'Not a git repository') {
+      if (!log) {
         await this._sendMessage(chatId, this._t('git_not_repo'));
         return;
       }
@@ -1637,7 +1642,12 @@ class TelegramBot extends EventEmitter {
       await this._sendMessage(chatId,
         `${this._t('git_last_commits', { n })}\n\n<pre><code>${this._escHtml(log)}</code></pre>`);
     } catch (err) {
-      await this._sendMessage(chatId, `❌ ${this._escHtml(err.message)}`);
+      const msg = (err.stderr || err.message || '').toString();
+      if (msg.includes('not a git repository') || msg.includes('fatal:')) {
+        await this._sendMessage(chatId, this._t('git_not_repo'));
+      } else {
+        await this._sendMessage(chatId, `❌ ${this._escHtml(msg.slice(0, 200))}`);
+      }
     }
   }
 

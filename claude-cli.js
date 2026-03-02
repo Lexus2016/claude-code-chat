@@ -1,9 +1,20 @@
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { StringDecoder } = require('string_decoder');
+
+// Kill a child process and its tree. On Windows `proc.kill()` only kills the
+// direct child (cmd.exe), leaving grandchildren (node.exe) orphaned.
+// `taskkill /T /F` kills the entire process tree.
+function killProc(proc) {
+  if (process.platform === 'win32' && proc.pid && Number.isInteger(proc.pid)) {
+    try { execSync(`taskkill /PID ${proc.pid} /T /F`, { stdio: 'ignore' }); } catch {}
+  } else {
+    try { proc.kill('SIGTERM'); } catch {}
+  }
+}
 
 // Resolve claude binary — cross-platform (macOS, Linux, Windows)
 function findClaudeBin() {
@@ -280,26 +291,31 @@ class ClaudeCLI {
       globalTimer = null;
       if (proc.exitCode !== null || proc.signalCode !== null) return;
       try { if (h.onError) h.onError('Claude subprocess timed out'); } catch {}
-      proc.kill('SIGTERM');
-      sigkillTimer = setTimeout(() => {
-        sigkillTimer = null;
-        if (proc.exitCode !== null || proc.signalCode !== null) return;
-        try { proc.kill('SIGKILL'); } catch {}
-      }, 3000);
-    }, MAX_SUBPROCESS_MS);
-
-    if (abortController) {
-      // { once: true } ensures the listener is auto-removed after firing
-      abortController.signal.addEventListener('abort', () => {
-        proc.kill('SIGTERM');
-        // Escalate to SIGKILL after 3 s if process ignores SIGTERM.
-        // Guard: if proc already exited (exitCode/signalCode set), skip to avoid
-        // hitting a new process that the OS reused the same PID for.
+      killProc(proc);
+      // Escalate to SIGKILL after 3 s (Unix only — on Windows killProc already force-kills)
+      if (process.platform !== 'win32') {
         sigkillTimer = setTimeout(() => {
           sigkillTimer = null;
           if (proc.exitCode !== null || proc.signalCode !== null) return;
           try { proc.kill('SIGKILL'); } catch {}
         }, 3000);
+      }
+    }, MAX_SUBPROCESS_MS);
+
+    if (abortController) {
+      // { once: true } ensures the listener is auto-removed after firing
+      abortController.signal.addEventListener('abort', () => {
+        killProc(proc);
+        // Escalate to SIGKILL after 3 s (Unix only — on Windows killProc already force-kills).
+        // Guard: if proc already exited (exitCode/signalCode set), skip to avoid
+        // hitting a new process that the OS reused the same PID for.
+        if (process.platform !== 'win32') {
+          sigkillTimer = setTimeout(() => {
+            sigkillTimer = null;
+            if (proc.exitCode !== null || proc.signalCode !== null) return;
+            try { proc.kill('SIGKILL'); } catch {}
+          }, 3000);
+        }
       }, { once: true });
     }
 

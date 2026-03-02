@@ -23,6 +23,9 @@
     "mcp"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.1.50",
     "bcryptjs": "^2.4.3",

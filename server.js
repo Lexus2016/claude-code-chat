@@ -153,6 +153,20 @@ function expandTildeInObj(obj) {
   return out;
 }
 
+// Kill a process by PID. On Windows uses `taskkill /T /F` to kill the entire
+// process tree (cmd.exe → node.exe chains). On Unix sends SIGTERM.
+function killByPid(pid) {
+  const n = Number(pid);
+  if (!Number.isInteger(n) || n <= 0) return;
+  try {
+    if (process.platform === 'win32') {
+      execSync(`taskkill /PID ${n} /T /F`, { stdio: 'ignore' });
+    } else {
+      process.kill(n, 'SIGTERM');
+    }
+  } catch {} // Process may already be dead (ESRCH)
+}
+
 [WORKDIR, SKILLS_DIR, path.dirname(DB_PATH), UPLOADS_DIR].forEach(d => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 });
@@ -790,10 +804,8 @@ setTimeout(() => {
     // When Node restarts, spawned 'claude' processes become OS orphans and keep running.
     // We kill them before deciding what to do with the task.
     if (task.worker_pid) {
-      try {
-        process.kill(task.worker_pid, 'SIGTERM');
-        console.log(`[startup] killed orphan PID ${task.worker_pid} for task "${task.title}"`);
-      } catch {} // ESRCH = process already dead — that's fine
+      killByPid(task.worker_pid);
+      console.log(`[startup] sent kill to orphan PID ${task.worker_pid} for task "${task.title}"`);
     }
     // Step 2: Determine if the task actually completed.
     // Assistant text is only written to DB on onDone — so its presence means success.
@@ -2095,7 +2107,7 @@ app.put('/api/tasks/:id', (req, res) => {
       console.log(`[taskWorker] aborting task "${task.title}" (${req.params.id}) — moved to ${status}`);
     } else if (task.worker_pid) {
       stoppingTasks.add(req.params.id);
-      try { process.kill(task.worker_pid, 'SIGTERM'); } catch {}
+      killByPid(task.worker_pid);
     }
   }
   stmts.updateTask.run(
@@ -3864,7 +3876,7 @@ wss.on('connection', (ws) => {
           db.prepare(`UPDATE tasks SET status='cancelled', updated_at=datetime('now') WHERE id=?`).run(runningTask.id);
           const ctrl = runningTaskAborts.get(runningTask.id);
           if (ctrl) { ctrl.abort(); }
-          else if (runningTask.worker_pid) { try { process.kill(runningTask.worker_pid, 'SIGTERM'); } catch {} }
+          else if (runningTask.worker_pid) { killByPid(runningTask.worker_pid); }
           log.info('ws stop aborted kanban task', { taskId: runningTask.id, sessionId: tabId });
         }
       }

@@ -138,16 +138,18 @@ class TunnelManager extends EventEmitter {
     // seeing wasRunning=true and emitting a duplicate 'close' event.
     this._state.running = false;
 
-    // Graceful shutdown
-    try { proc.kill('SIGTERM'); } catch {}
-
-    // Force kill after timeout
-    const forceKill = setTimeout(() => {
-      try { proc.kill('SIGKILL'); } catch {}
-    }, SHUTDOWN_TIMEOUT);
-    forceKill.unref(); // Don't prevent Node.js from exiting
-
-    proc.once('exit', () => clearTimeout(forceKill));
+    // Graceful shutdown — on Windows taskkill /T /F kills the entire process tree
+    if (process.platform === 'win32' && proc.pid && Number.isInteger(proc.pid)) {
+      try { execSync(`taskkill /PID ${proc.pid} /T /F`, { stdio: 'ignore' }); } catch {}
+    } else {
+      try { proc.kill('SIGTERM'); } catch {}
+      // Escalate to SIGKILL after timeout (Unix only — Windows already force-killed above)
+      const forceKill = setTimeout(() => {
+        try { proc.kill('SIGKILL'); } catch {}
+      }, SHUTDOWN_TIMEOUT);
+      forceKill.unref();
+      proc.once('exit', () => clearTimeout(forceKill));
+    }
     this._cleanup('Stopped by user');
     this.emit('close', 'Stopped by user');
   }
@@ -173,12 +175,17 @@ class TunnelManager extends EventEmitter {
     const env = { ...process.env };
     delete env.CLAUDECODE;
 
+    // On Windows, tunnel binaries installed via npm/chocolatey may be .cmd wrappers
+    // that require shell:true to execute (consistent with claude-cli.js approach).
+    const needsShell = process.platform === 'win32';
+
     if (provider === 'cloudflared') {
       return spawn('cloudflared', [
         'tunnel', '--url', `http://localhost:${this.port}`, '--no-autoupdate',
       ], {
         stdio: ['ignore', 'pipe', 'pipe'],
         env,
+        shell: needsShell,
       });
     }
 
@@ -190,6 +197,7 @@ class TunnelManager extends EventEmitter {
       return spawn('ngrok', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         env,
+        shell: needsShell,
       });
     }
 
