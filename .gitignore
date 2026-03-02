@@ -52,3 +52,17 @@ agent-orchestrator.yaml
 
 # Config with API keys (use config.example.json as template)
 config.json
+
+# Serena plugin data
+.serena/
+
+# Test scripts & artifacts
+test-*.sh
+public/test-*.html
+tool-activity-check.png
+
+# Task tracking (local dev planning)
+tasks/
+
+# Generated HTML exports
+README_RU.html
