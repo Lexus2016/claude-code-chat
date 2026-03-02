@@ -49,7 +49,6 @@ button:focus-visible,a:focus-visible{ border-radius:5px; }
 .status-dot.ok::before{ color:var(--green); }
 .status-dot.err{ color:var(--red); }
 .status-dot.err::before{ color:var(--red); }
-#kbVersionBadge{ font-size:11px; color:var(--muted); letter-spacing:.3px; }
 .hb{ background:var(--s2); border:1px solid var(--border); color:var(--muted); padding:5px 11px; border-radius:7px; cursor:pointer; font-size:13px; transition:all .15s; font-weight:500; font-family:inherit; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
 .hb:hover{ color:var(--text); border-color:var(--accent2); background:var(--s3); }
 .hb.active{ color:var(--accent2); border-color:var(--accent); background:var(--abg); }
@@ -332,7 +331,6 @@ textarea.inp{ resize:vertical; min-height:80px; }
           <div class="proj-dd-list" id="projDdList"></div>
         </div>
       </div>
-      <span id="kbVersionBadge"></span>
     </div>
   </div>
   <div class="hdr-btns">
@@ -485,10 +483,6 @@ const lang = localStorage.getItem('lang') || 'uk';
 function t(k){ return (TR[lang]||TR.uk)[k] || k; }
 
 document.title = t('hdr.title') + ' — Claude Code Studio';
-fetch('/api/version').then(r=>r.json()).then(d=>{
-  const el=document.getElementById('kbVersionBadge');
-  if(el&&d.version) el.textContent='Claude Code Studio v'+d.version;
-}).catch(()=>{});
 document.getElementById('addBtnLabel').textContent=t('hdr.add');
 document.getElementById('kbStatusEl').textContent=t('hdr.connected');
 document.getElementById('cancelBtn').textContent=t('confirm.cancel');

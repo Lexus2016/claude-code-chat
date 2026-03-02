@@ -77,17 +77,21 @@ button{font-family:inherit;cursor:pointer}
 
 /* ─── Stats bar ─── */
 .stats-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--s1);border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0}
-.stat-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid transparent;transition:all .15s;cursor:default}
+.stat-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid transparent;transition:all .15s;cursor:default}
 .stat-chip-overdue{background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.2);color:var(--red)}
 .stat-chip-today{background:rgba(229,164,53,.1);border-color:rgba(229,164,53,.2);color:var(--orange)}
 .stat-chip-upcoming{background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.2);color:var(--blue)}
 .stat-chip-recurring{background:var(--abg);border-color:rgba(124,106,239,.2);color:var(--accent2)}
-.stat-chip-num{font-size:14px;font-weight:700;min-width:16px;text-align:center}
+.stat-chip-num{font-size:12px;font-weight:700;min-width:14px;text-align:center}
 .stat-chip svg{opacity:.8;flex-shrink:0}
-.stats-spacer{width:1px;height:16px;background:var(--border);margin:0 2px;flex-shrink:0}
+.stats-spacer{width:1px;height:14px;background:var(--border);margin:0 2px;flex-shrink:0}
 .refresh-ts{font-size:11px;color:var(--muted);margin-left:auto;display:flex;align-items:center;gap:5px}
-.refresh-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse-dot 2s ease-in-out infinite}
-@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.status-dot{display:inline-flex;align-items:center;gap:5px;font-size:13px;margin-left:auto}
+.status-dot::before{content:'●';font-size:8px}
+.status-dot.ok{color:var(--green)}
+.status-dot.ok::before{color:var(--green)}
+.status-dot.err{color:var(--red)}
+.status-dot.err::before{color:var(--red)}
 
 /* ─── Agenda layout ─── */
 .agenda{max-width:860px;margin:0 auto;padding:24px 16px 80px;display:flex;flex-direction:column;gap:28px}
@@ -272,7 +276,7 @@ button{font-family:inherit;cursor:pointer}
   .tl-time-date{font-size:9px}
   .proj-dd-btn{max-width:120px;padding:5px 10px;font-size:12px}
   .stats-bar{gap:5px}
-  .stat-chip{padding:3px 7px;font-size:11px}
+  .stat-chip{padding:2px 6px;font-size:10px}
   .section-date{font-size:16px}
 }
 @media(max-width:420px){
@@ -360,10 +364,7 @@ button{font-family:inherit;cursor:pointer}
     <span class="stat-chip-num" id="cntRecurring">0</span>
     <span id="lblStatRecurring">повторюваних</span>
   </div>
-  <div class="refresh-ts">
-    <span class="refresh-dot"></span>
-    <span id="refreshTs2">—</span>
-  </div>
+  <span class="status-dot ok" id="schStatusEl">Connected</span>
 </div>
 
 <!-- Agenda -->
@@ -404,7 +405,7 @@ const TR = {
     'page.title': 'Розклад — Claude Code Studio',
     'nav.chat': 'Chat', 'nav.kanban': 'Kanban', 'nav.schedule': 'Schedule',
     'nav.aria': 'Навігація між розділами',
-    'hdr.add': 'Задача', 'hdr.refresh': 'Оновити',
+    'hdr.add': 'Задача', 'hdr.refresh': 'Оновити', 'hdr.connected': 'Підключено', 'hdr.disconnected': 'Відключено',
     'proj.all': 'Всі проекти', 'proj.search': 'Пошук…', 'proj.noname': 'Без проекту',
     'stat.overdue': 'прострочено', 'stat.today': 'сьогодні',
     'stat.upcoming': 'заплановано', 'stat.recurring': 'повторюваних',
@@ -452,7 +453,7 @@ const TR = {
     'page.title': 'Schedule — Claude Code Studio',
     'nav.chat': 'Chat', 'nav.kanban': 'Kanban', 'nav.schedule': 'Schedule',
     'nav.aria': 'Navigation',
-    'hdr.add': 'Task', 'hdr.refresh': 'Refresh',
+    'hdr.add': 'Task', 'hdr.refresh': 'Refresh', 'hdr.connected': 'Connected', 'hdr.disconnected': 'Disconnected',
     'proj.all': 'All projects', 'proj.search': 'Search…', 'proj.noname': 'No name',
     'stat.overdue': 'overdue', 'stat.today': 'today',
     'stat.upcoming': 'upcoming', 'stat.recurring': 'recurring',
@@ -500,7 +501,7 @@ const TR = {
     'page.title': 'Расписание — Claude Code Studio',
     'nav.chat': 'Чат', 'nav.kanban': 'Kanban', 'nav.schedule': 'Расписание',
     'nav.aria': 'Навигация',
-    'hdr.add': 'Задача', 'hdr.refresh': 'Обновить',
+    'hdr.add': 'Задача', 'hdr.refresh': 'Обновить', 'hdr.connected': 'Подключено', 'hdr.disconnected': 'Отключено',
     'proj.all': 'Все проекты', 'proj.search': 'Поиск…', 'proj.noname': 'Без проекта',
     'stat.overdue': 'просрочено', 'stat.today': 'сегодня',
     'stat.upcoming': 'запланировано', 'stat.recurring': 'повторяющихся',
@@ -715,13 +716,17 @@ async function fetchSessions() {
 }
 
 async function refresh() {
+  const el = $i('schStatusEl');
   try {
     [tasks, sessions] = await Promise.all([fetchTasks(), fetchSessions()]);
     render();
     const now = new Date().toLocaleTimeString(t('locale'), { hour: '2-digit', minute: '2-digit' });
     $i('refreshTs').textContent = now;
-    $i('refreshTs2').textContent = now;
-  } catch(e) { toast(t('toast.err.load') + e.message, 'err'); }
+    if (el) { el.textContent = t('hdr.connected'); el.className = 'status-dot ok'; }
+  } catch(e) {
+    if (el) { el.textContent = t('hdr.disconnected'); el.className = 'status-dot err'; }
+    toast(t('toast.err.load') + e.message, 'err');
+  }
 }
 
 // ─── Bucketing ────────────────────────────────────────────────────────────
@@ -1166,6 +1171,7 @@ function applyStaticI18n() {
   const lu = $i('lblStatUpcoming'); if (lu) lu.textContent = ' ' + t('stat.upcoming');
   const lr = $i('lblStatRecurring'); if (lr) lr.textContent = ' ' + t('stat.recurring');
   const ps = $i('projDdSearch'); if (ps) ps.placeholder = t('proj.search');
+  const se = $i('schStatusEl'); if (se) se.textContent = t('hdr.connected');
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────
