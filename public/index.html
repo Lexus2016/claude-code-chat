@@ -3344,6 +3344,7 @@ function handleWsMsg(d) {
     }
 
     case 'text':
+      getTS(tabId).agentStatus = ''; // text has arrived — status no longer relevant (clear even for background tabs to prevent stale spinner on tab switch)
       if (!isVisible) {
         // Accumulate text for background tabs — restored when user switches back
         // catchUp replaces accumulated text (full replay from server); normal chunks append
@@ -3352,7 +3353,6 @@ function handleWsMsg(d) {
         break;
       }
       rmStatus();
-      getTS(tabId).agentStatus = ''; // text has arrived — status no longer relevant
       if (!streaming.el) { rmW(); streaming.el = addMsg('assistant'); streaming.txt = ''; addSpinner(streaming.el); }
       // catchUp = full replay from server after reconnect → replace, not append
       if (d.catchUp) { streaming.txt = d.text; } else { streaming.txt += d.text; }
@@ -3364,6 +3364,7 @@ function handleWsMsg(d) {
     case 'tool':
       // Track tool usage for activity summary on done — ALWAYS use tabId, not activeTabId
       { const ts = getTS(tabId); if (!ts._toolCounts) ts._toolCounts = {}; const tn = d.tool || 'tool'; ts._toolCounts[tn] = (ts._toolCounts[tn] || 0) + 1; }
+      getTS(tabId).agentStatus = ''; // tool arrived — classification status no longer relevant (clear even for background tabs)
       // Live tool activity panel — show what Claude Code is doing
       if (isVisible) {
         if (!streaming.el) { rmW(); rmStatus(); streaming.el = addMsg('assistant'); streaming.txt = ''; addSpinner(streaming.el); }
@@ -3390,7 +3391,9 @@ function handleWsMsg(d) {
     case 'agent_status': {
       const _asTxt = (d.agent ? d.agent + ' · ' : '') + escH(d.statusKey ? t(d.statusKey) : d.status);
       getTS(tabId).agentStatus = _asTxt; // persist for tab-switch restoration
-      if (isVisible) showStatus(_asTxt);
+      // Only show floating status when no streaming bubble exists yet — otherwise the
+      // status text would duplicate the footer spinner already inside the bubble.
+      if (isVisible && !streaming.el) showStatus(_asTxt);
       // Update team card
       if (d.agent && d.agent !== 'orchestrator') {
         const st = d.status || '';
@@ -3416,6 +3419,10 @@ function handleWsMsg(d) {
     }
 
     case 'status':
+      // Claude actually started — clear classification status STATE so tab-switch won't
+      // restore a stale floating spinner. But do NOT call rmStatus() here — the DOM element
+      // should persist as a visual indicator until the first tool/text event replaces it.
+      getTS(tabId).agentStatus = '';
       if (isVisible) {
         setStatus(`CLI · ${d.mode || ''} · ${d.model || ''}`, 'warn');
         setSendStop(true);
@@ -6262,8 +6269,10 @@ async function loadSess(id) {
     }
 
     // Re-show agent status if this tab is still generating (was cleared by msgsEl.innerHTML = '')
+    // Guard: only show floating status if streaming bubble was NOT already created above —
+    // otherwise we'd get both a bubble with footer spinner AND a floating .agent-status spinner.
     const _savedStatus = tabState[id]?.agentStatus;
-    if (_savedStatus) showStatus(_savedStatus);
+    if (_savedStatus && !streaming.el) showStatus(_savedStatus);
 
     // Render any pending ask_user cards that arrived while this tab was in the background
     const _askTs = tabState[id];
