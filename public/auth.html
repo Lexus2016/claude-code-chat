@@ -30,8 +30,8 @@ h1{font-size:20px;margin-bottom:4px}
   <p class="sub" id="subtitle">Loading...</p>
   <form id="setupForm" style="display:none" onsubmit="return doSetup(event)">
     <div class="field"><label>Your name</label><input type="text" id="setupName" placeholder="Admin" autocomplete="name"></div>
-    <div class="field"><label>Password (min. 6 characters)</label><input type="password" id="setupPass" placeholder="••••••••" required minlength="6"></div>
-    <div class="field"><label>Confirm password</label><input type="password" id="setupPass2" placeholder="••••••••" required minlength="6"></div>
+    <div class="field"><label>Password (min. 8 characters)</label><input type="password" id="setupPass" placeholder="••••••••" required minlength="8"></div>
+    <div class="field"><label>Confirm password</label><input type="password" id="setupPass2" placeholder="••••••••" required minlength="8"></div>
     <button type="submit" class="btn btn-primary" id="setupBtn">🚀 Create account</button>
     <div class="error" id="setupError"></div>
     <p class="note">First run. Password is stored locally (bcrypt hash).</p>

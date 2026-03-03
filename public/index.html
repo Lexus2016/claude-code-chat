@@ -1605,7 +1605,7 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
       <div class="sec-body" id="histBody">
         <div class="hist-list" id="histList"></div>
         <div class="hist-bulk-bar" id="histBulkBar">
-          <span class="bulk-info" id="histBulkInfo" data-i18n="bulk.info">0 вибрано</span>
+          <span class="bulk-info" id="histBulkInfo">0 вибрано</span>
           <button class="bulk-all" onclick="selectAllHist()" data-i18n="bulk.all">Всі</button>
           <button class="bulk-del" id="histBulkDel" onclick="delSelectedHist()" disabled data-i18n="bulk.del">Видалити</button>
         </div>
@@ -2472,6 +2472,13 @@ const TRANSLATIONS = {
     'dir.ssh_host':'SSH Хост:','dir.remote.path':'Шлях на сервері:',
     'dir.remote.test':'🔌 Тест з\'єднання','dir.remote.add_new':'＋ Новий',
     'dir.remote.err.no_host':'Оберіть SSH хост','dir.remote.err.no_path':'Вкажіть шлях на сервері',
+    'cpc.running':'виконується','cpc.done':'виконано','cpc.failed':'помилка','cpc.retrying':'повтор',
+    'mcp.cfg.env':'Змінні оточення','mcp.cfg.env_add':'＋ Додати','mcp.cfg.env_empty':'Немає змінних оточення',
+    'notif.dismiss':'Закрити','msf.plan_kanban':'План → Kanban','msf.open_kanban':'Відкрити Kanban →','msf.sent':'✅ Надіслано',
+    'skill.custom_desc':'Користувацький скіл','skill.custom_cat':'🔧 Кастомні',
+    'files.remote_unavail':'🌐 Віддалений проект —<br>файловий браузер недоступний',
+    'hist.drag':'Перетягнути','tg.device.connected':'📱 Telegram: {name} підключено',
+    'tg.bot.started':'✅ Telegram-бот запущено: @{bot}',
   },
   en: {
     'sec.proactive':'Status',
@@ -2633,6 +2640,13 @@ const TRANSLATIONS = {
     'dir.ssh_host':'SSH Host:','dir.remote.path':'Server path:',
     'dir.remote.test':'🔌 Test connection','dir.remote.add_new':'＋ New',
     'dir.remote.err.no_host':'Select SSH host','dir.remote.err.no_path':'Enter server path',
+    'cpc.running':'running','cpc.done':'done','cpc.failed':'failed','cpc.retrying':'retrying',
+    'mcp.cfg.env':'Environment','mcp.cfg.env_add':'＋ Add','mcp.cfg.env_empty':'No environment variables',
+    'notif.dismiss':'Dismiss','msf.plan_kanban':'Plan → Kanban','msf.open_kanban':'Open Kanban →','msf.sent':'✅ Sent',
+    'skill.custom_desc':'Custom skill','skill.custom_cat':'🔧 Custom',
+    'files.remote_unavail':'🌐 Remote project —<br>file browser not available',
+    'hist.drag':'Drag to reorder','tg.device.connected':'📱 Telegram: {name} connected',
+    'tg.bot.started':'✅ Telegram bot started: @{bot}',
   },
   ru: {
     'sec.proactive':'Статус',
@@ -2794,6 +2808,13 @@ const TRANSLATIONS = {
     'dir.ssh_host':'SSH Хост:','dir.remote.path':'Путь на сервере:',
     'dir.remote.test':'🔌 Тест подключения','dir.remote.add_new':'＋ Новый',
     'dir.remote.err.no_host':'Выберите SSH хост','dir.remote.err.no_path':'Укажите путь на сервере',
+    'cpc.running':'выполняется','cpc.done':'выполнено','cpc.failed':'ошибка','cpc.retrying':'повтор',
+    'mcp.cfg.env':'Переменные окружения','mcp.cfg.env_add':'＋ Добавить','mcp.cfg.env_empty':'Нет переменных окружения',
+    'notif.dismiss':'Закрыть','msf.plan_kanban':'План → Kanban','msf.open_kanban':'Открыть Kanban →','msf.sent':'✅ Отправлено',
+    'skill.custom_desc':'Пользовательский навык','skill.custom_cat':'🔧 Кастомные',
+    'files.remote_unavail':'🌐 Удалённый проект —<br>файловый браузер недоступен',
+    'hist.drag':'Перетащить','tg.device.connected':'📱 Telegram: {name} подключён',
+    'tg.bot.started':'✅ Telegram-бот запущен: @{bot}',
   }
 };
 function t(key) {
@@ -2811,6 +2832,7 @@ function setLang(lang) {
   document.querySelectorAll('[data-i18n-tip]').forEach(el => { const k = el.getAttribute('data-i18n-tip'); if (t[k] !== undefined) el.setAttribute('data-tip', t[k]); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { const k = el.getAttribute('data-i18n-title'); if (t[k] !== undefined) el.title = t[k]; });
   document.querySelectorAll('[data-i18n-aria]').forEach(el => { const k = el.getAttribute('data-i18n-aria'); if (t[k] !== undefined) el.setAttribute('aria-label', t[k]); });
+  if (typeof updateHistBulkBar === 'function') updateHistBulkBar();
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
@@ -2875,7 +2897,7 @@ function showNotification(data) {
   let html = `<div class="notif-header">`;
   html += `<span class="notif-icon">${icon}</span>`;
   html += `<span class="notif-title">${escH(data.title || '')}</span>`;
-  html += `<button class="notif-close" title="Dismiss">&times;</button>`;
+  html += `<button class="notif-close" title="${escH(t('notif.dismiss'))}">&times;</button>`;
   html += `</div>`;
 
   // Show project + session context
@@ -3083,7 +3105,10 @@ function renderMd(text) {
   // Restore inline code (was extracted in step 2.5)
   text = text.replace(/\x04ICODE(\d+)\x05/g, (_, i) => `<code>${inlineCodes[+i]}</code>`);
   // Links
-  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
+    if (/^javascript:/i.test(url.trim())) return label;
+    return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+  });
 
   // 5. Paragraphs — wrap lines that aren't block elements
   const blockTags = /^<(?:h[1-6]|ul|ol|li|hr|blockquote|pre|div)|^\x02BLOCK\d+\x03/;
@@ -3726,7 +3751,7 @@ function handleWsMsg(d) {
     }
 
     case 'telegram_device_paired':
-      toast(`📱 Telegram: ${d.device?.display_name || 'пристрій'} підключено`);
+      toast(t('tg.device.connected').replace('{name}', d.device?.display_name || 'device'));
       tgLoadStatus();
       tgCancelPairing();
       break;
@@ -4072,7 +4097,7 @@ function _atcRender(planText, agents, dispatched) {
     <div class="atc-header">
       <div class="atc-icon">${dispatched ? '📋' : '🤖'}</div>
       <div>
-        <div class="atc-title">${dispatched ? 'Plan → Kanban' : escH(t('msf.team'))}</div>
+        <div class="atc-title">${dispatched ? escH(t('msf.plan_kanban')) : escH(t('msf.team'))}</div>
         <div class="atc-plan" title="${escH(planText)}">${escH(planText)}</div>
       </div>
     </div>
@@ -4106,7 +4131,7 @@ function _atcDispatch() {
     model: curModel,
   }));
   const btn = document.querySelector('.atc-dispatch-btn');
-  if (btn) { btn.textContent = '✅ Sent'; btn.disabled = true; }
+  if (btn) { btn.textContent = t('msf.sent'); btn.disabled = true; }
 }
 function _atcUpdate(agentId, state) {
   const card = msgsEl.querySelector('.agent-team-card');
@@ -4114,7 +4139,7 @@ function _atcUpdate(agentId, state) {
   const info = _atcAgents.get(agentId);
   if (info) info.state = state;
 
-  const row = card.querySelector(`[data-agent-id="${agentId}"]`);
+  const row = card.querySelector(`[data-agent-id="${CSS.escape(agentId)}"]`);
   if (row) {
     row.classList.remove('atc-working', 'atc-done', 'atc-error');
     if (state === 'working') row.classList.add('atc-working');
@@ -4149,21 +4174,21 @@ function _chainProgressRender(chainId, tasks) {
   card.innerHTML = `
     <div class="cpc-title">${titleText}</div>
     <div class="cpc-tasks">
-      ${tasks.map(t => {
-        const st = t.status || 'todo';
+      ${tasks.map(tk => {
+        const st = tk.status || 'todo';
         const cls = st === 'done' ? 'cpc-done' : st === 'in_progress' ? 'cpc-running' : st === 'cancelled' ? 'cpc-failed' : '';
-        const label = st === 'in_progress' ? 'running' : st === 'cancelled' ? 'failed' : st;
+        const label = st === 'in_progress' ? t('cpc.running') : st === 'cancelled' ? t('cpc.failed') : st === 'done' ? t('cpc.done') : st;
         return `
-        <div class="cpc-task ${cls}" data-task-id="${escH(t.id)}">
+        <div class="cpc-task ${cls}" data-task-id="${escH(tk.id)}">
           <span class="cpc-dot"></span>
-          <span class="cpc-name">${escH(t.title)}</span>
+          <span class="cpc-name">${escH(tk.title)}</span>
           <span class="cpc-status" style="font-size:10px;color:var(--muted);margin-left:auto">${label}</span>
         </div>`;
       }).join('')}
     </div>
     <div class="cpc-bar"><div class="cpc-bar-fill" style="width:${pct}%"></div></div>
     <div style="margin-top:6px;text-align:right">
-      <a href="/kanban" target="_blank" style="font-size:10px;color:var(--accent);text-decoration:none;opacity:.7">Open Kanban →</a>
+      <a href="/kanban" target="_blank" style="font-size:10px;color:var(--accent);text-decoration:none;opacity:.7">${t('msf.open_kanban')}</a>
     </div>`;
   msgsEl.appendChild(card);
   scrollBottom();
@@ -4175,10 +4200,10 @@ function _chainProgressUpdate(taskId, status) {
   if (row) {
     row.classList.remove('cpc-done', 'cpc-running', 'cpc-failed', 'cpc-retry');
     const statusEl = row.querySelector('.cpc-status');
-    if (status === 'in_progress') { row.classList.add('cpc-running'); if (statusEl) statusEl.textContent = 'running'; }
-    else if (status === 'done') { row.classList.add('cpc-done'); if (statusEl) statusEl.textContent = 'done'; }
-    else if (status === 'cancelled') { row.classList.add('cpc-failed'); if (statusEl) statusEl.textContent = 'failed'; }
-    else if (status === 'retry') { row.classList.add('cpc-retry'); if (statusEl) statusEl.textContent = 'retrying'; }
+    if (status === 'in_progress') { row.classList.add('cpc-running'); if (statusEl) statusEl.textContent = t('cpc.running'); }
+    else if (status === 'done') { row.classList.add('cpc-done'); if (statusEl) statusEl.textContent = t('cpc.done'); }
+    else if (status === 'cancelled') { row.classList.add('cpc-failed'); if (statusEl) statusEl.textContent = t('cpc.failed'); }
+    else if (status === 'retry') { row.classList.add('cpc-retry'); if (statusEl) statusEl.textContent = t('cpc.retrying'); }
   }
   // Update task state in _chainData
   const t = _chainData.tasks.find(x => x.id === taskId);
@@ -5826,7 +5851,7 @@ async function loadHist() {
       d.setAttribute('tabindex', '0');
       if (!histSelectMode) d.setAttribute('draggable', 'true');
       const dt = new Date(s.updated_at).toLocaleDateString(localStorage.getItem('lang') || 'uk', { day: 'numeric', month: 'short' });
-      d.innerHTML = `<span class="drag-handle" onclick="event.stopPropagation()" title="Перетягнути">⠿</span><input type="checkbox" class="hist-chk" ${isSel ? 'checked' : ''} onclick="event.stopPropagation();toggleSessCheck('${s.id}',this)"><span class="ht" data-tip="${escH(s.title)}">${escH(s.title)}</span><span class="hd">${dt}</span><button class="del" onclick="event.stopPropagation();delSess('${s.id}')" title="✕">✕</button>`;
+      d.innerHTML = `<span class="drag-handle" onclick="event.stopPropagation()" title="${t('hist.drag')}">⠿</span><input type="checkbox" class="hist-chk" ${isSel ? 'checked' : ''} onclick="event.stopPropagation();toggleSessCheck('${s.id}',this)"><span class="ht" data-tip="${escH(s.title)}">${escH(s.title)}</span><span class="hd">${dt}</span><button class="del" onclick="event.stopPropagation();delSess('${s.id}')" title="✕">✕</button>`;
       if (histSelectMode) {
         d.onclick = (e) => { const chk = d.querySelector('.hist-chk'); chk.checked = !chk.checked; toggleSessCheck(s.id, chk); };
       } else {
@@ -5871,7 +5896,7 @@ function _renderMsgAt(idx, prepend = false) {
       <div class="atc-header">
         <div class="atc-icon">${ap.dispatched ? '📋' : '🤖'}</div>
         <div>
-          <div class="atc-title">${ap.dispatched ? 'Plan → Kanban' : escH(t('msf.team'))}</div>
+          <div class="atc-title">${ap.dispatched ? escH(t('msf.plan_kanban')) : escH(t('msf.team'))}</div>
           <div class="atc-plan" title="${escH(ap.plan || '')}">${escH(ap.plan || '')}</div>
         </div>
       </div>
@@ -5946,7 +5971,7 @@ function _renderMsgAt(idx, prepend = false) {
             <div class="atc-header">
               <div class="atc-icon">${pd.dispatched ? '📋' : '🤖'}</div>
               <div>
-                <div class="atc-title">${pd.dispatched ? 'Plan → Kanban' : escH(t('msf.team'))}</div>
+                <div class="atc-title">${pd.dispatched ? escH(t('msf.plan_kanban')) : escH(t('msf.team'))}</div>
                 <div class="atc-plan" title="${escH(pd.plan || '')}">${escH(pd.plan || '')}</div>
               </div>
             </div>
@@ -6283,7 +6308,7 @@ function updateHistBulkBar() {
   const del = $i('histBulkDel');
   const allBtn = document.querySelector('#histBulkBar .bulk-all');
   if (info) info.textContent = t('bulk.info').replace('{n}', n);
-  if (del) del.disabled = n === 0;
+  if (del) { del.disabled = n === 0; del.textContent = t('bulk.del'); }
   if (allBtn) {
     const items = $i('histList') ? $i('histList').querySelectorAll('.hist-item[data-sess]') : [];
     const allSel = items.length > 0 && [...items].every(i => histSelected.has(String(i.dataset.sess)));
@@ -6463,7 +6488,7 @@ function _mcpEnvRow(container, key='', val='') {
   row.innerHTML = `
     <input type="text" class="mcp-cfg-input env-kv-key" value="${escH(key)}" placeholder="KEY_NAME">
     <input type="${isSecret?'password':'text'}" class="mcp-cfg-input env-kv-val" value="${escH(val)}" placeholder="value">
-    <button class="env-kv-del" title="Remove" onclick="this.closest('.env-kv-row').remove()">✕</button>`;
+    <button class="env-kv-del" title="${escH(t('chip.remove'))}" onclick="this.closest('.env-kv-row').remove()">✕</button>`;
   container.appendChild(row);
   return row;
 }
@@ -6534,7 +6559,7 @@ function showMcpSettings(id, enableAfter=false) {
   if (rows.length > 0) envSection.style.cssText = 'border-top:1px solid var(--border);padding-top:14px;margin-top:4px';
   const envHeader = document.createElement('div');
   envHeader.className = 'mcp-cfg-label';
-  envHeader.innerHTML = `<span>Environment</span><button class="env-add-btn" style="width:auto;padding:3px 10px;margin:0" onclick="this.closest('#mcpSettingsBody').querySelector('#mcpCfgEnvRows')&&_mcpEnvRow(this.closest('#mcpSettingsBody').querySelector('#mcpCfgEnvRows'))">＋ Add</button>`;
+  envHeader.innerHTML = `<span>${escH(t('mcp.cfg.env'))}</span><button class="env-add-btn" style="width:auto;padding:3px 10px;margin:0" onclick="this.closest('#mcpSettingsBody').querySelector('#mcpCfgEnvRows')&&_mcpEnvRow(this.closest('#mcpSettingsBody').querySelector('#mcpCfgEnvRows'))">${escH(t('mcp.cfg.env_add'))}</button>`;
   envSection.appendChild(envHeader);
 
   const envContainer = document.createElement('div');
@@ -6553,7 +6578,7 @@ function showMcpSettings(id, enableAfter=false) {
   if (Object.keys(m.env||{}).length === 0 || (Object.keys(m.env||{}).length - shownAsField.size) === 0) {
     const emptyHint = document.createElement('div');
     emptyHint.style.cssText = 'font-size:12px;color:var(--muted);padding:4px 0;opacity:.7';
-    emptyHint.textContent = 'No environment variables';
+    emptyHint.textContent = t('mcp.cfg.env_empty');
     emptyHint.id = 'mcpEnvEmpty';
     envContainer.appendChild(emptyHint);
     // Remove hint on first add
@@ -6790,7 +6815,7 @@ function renderSkills() {
 
     // Category header
     const catMeta = SKILL_CATS[catId];
-    const catLabel = catMeta ? (catMeta[lang] || catMeta.en) : '🔧 Custom';
+    const catLabel = catMeta ? (catMeta[lang] || catMeta.en) : t('skill.custom_cat');
     const catDiv = document.createElement('div');
     catDiv.className = 'sk-cat';
     catDiv.textContent = catLabel;
@@ -6856,7 +6881,7 @@ async function uploadSkill(input) {
   if (!name) return;
   const fd = new FormData();
   fd.append('file', file); fd.append('name', name);
-  fd.append('label', name); fd.append('description', 'Custom skill');
+  fd.append('label', name); fd.append('description', t('skill.custom_desc'));
   const r = await fetch('/api/skills/upload', { method: 'POST', body: fd });
   const d = await r.json();
   if (d.ok) { toast(t('toast.skill_uploaded')); input.value = ''; await loadCfg(); }
@@ -7098,7 +7123,7 @@ async function loadFiles(dir = '') {
     const d = await r.json();
     if (d.type === 'remote') {
       const treeEl = $i('filesTree');
-      if (treeEl) treeEl.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 4px;line-height:1.6">🌐 Remote project —<br>file browser not available</div>';
+      if (treeEl) treeEl.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:8px 4px;line-height:1.6">${t('files.remote_unavail')}</div>`;
       return;
     }
     if (d.type !== 'dir') return;
@@ -7314,7 +7339,7 @@ function renderProjects() {
     const busyDot = busy ? `<span class="proj-busy-dot tab-dot spinning" title="${t('proj.generating')}"></span>` : '';
     const remoteBadge = p.isRemote ? `<span class="remote-badge" title="${escH(p.remoteHost||'')}">🌐 SSH</span>` : '';
     div.innerHTML = `
-      <span class="proj-drag-handle" onclick="event.stopPropagation()" title="Перетягнути">⠿</span>
+      <span class="proj-drag-handle" onclick="event.stopPropagation()" title="${t('hist.drag')}">⠿</span>
       <div class="inf">
         <div class="nm" data-tip="${escH(p.name)}">${escH(p.name)}${busyDot}${remoteBadge}</div>
         <div class="ds" data-tip="${escH(p.isRemote ? (p.remoteHost||'') + ':' + p.workdir : p.workdir)}">${escH(shortPath)}</div>
@@ -8174,7 +8199,7 @@ async function tgStartBot() {
     });
     const d = await r.json();
     if (d.ok) {
-      toast(`✅ Telegram-бот запущено: @${d.botInfo?.username || 'bot'}`);
+      toast(t('tg.bot.started').replace('{bot}', d.botInfo?.username || 'bot'));
       tgLoadStatus();
     } else {
       toast(`❌ ${d.error}`, true);

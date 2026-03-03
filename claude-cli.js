@@ -214,7 +214,7 @@ class ClaudeCLI {
     proc.stdout.on('data', (chunk) => {
       buffer += stdoutDecoder.write(chunk);
       // Guard against a runaway line (no \n) consuming all heap
-      if (buffer.length > MAX_LINE_BUFFER) { buffer = ''; return; }
+      if (buffer.length > MAX_LINE_BUFFER) { console.warn(`[claude-cli] Buffer overflow (${(buffer.length / 1024 / 1024).toFixed(1)} MB), dropping incomplete line`); buffer = ''; return; }
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || '';
       for (const line of lines) {

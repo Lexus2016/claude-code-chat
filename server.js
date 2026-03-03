@@ -131,6 +131,23 @@ const BUNDLED_SKILL_META = {
   'researcher':        { label:'🔬 Deep Researcher',            category:'research'    },
 };
 
+// ─── Server-side i18n for user-facing defaults ──────────────────────────────
+const SERVER_I18N = {
+  uk: { newSession: 'Нова сесія', newTask: 'Нова задача' },
+  en: { newSession: 'New session', newTask: 'New task' },
+  ru: { newSession: 'Новая сессия', newTask: 'Новая задача' },
+};
+// All possible default session titles across languages (used to detect "untitled" sessions)
+const DEFAULT_SESSION_TITLES = new Set(Object.values(SERVER_I18N).map(v => v.newSession));
+const DEFAULT_TASK_TITLES    = new Set(Object.values(SERVER_I18N).map(v => v.newTask));
+
+/** Get user's preferred language from config (cached via loadMergedConfig). */
+function getUserLang() {
+  try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')).lang || 'en'; } catch { return 'en'; }
+}
+function i18nSession() { return SERVER_I18N[getUserLang()]?.newSession || SERVER_I18N.en.newSession; }
+function i18nTask()    { return SERVER_I18N[getUserLang()]?.newTask    || SERVER_I18N.en.newTask; }
+
 // ─── Global Claude Code directory (priority: global → local) ─────────────────
 const GLOBAL_CLAUDE_DIR  = path.join(os.homedir(), '.claude');
 const GLOBAL_SKILLS_DIR  = path.join(GLOBAL_CLAUDE_DIR, 'skills');
@@ -200,8 +217,7 @@ const CLEANUP_INTERVAL_HOURS = parseInt(process.env.CLEANUP_INTERVAL_HOURS || '2
  */
 function cleanOldSessions() {
   try {
-    const cutoff = `datetime('now', '-${SESSION_TTL_DAYS} days')`;
-    const result = db.prepare(`DELETE FROM sessions WHERE updated_at < ${cutoff}`).run();
+    const result = db.prepare(`DELETE FROM sessions WHERE updated_at < datetime('now', '-' || ? || ' days')`).run(SESSION_TTL_DAYS);
     if (result.changes > 0) {
       log.info(`[cleanup] Deleted ${result.changes} sessions older than ${SESSION_TTL_DAYS} days`);
     }
@@ -254,7 +270,7 @@ db.pragma('foreign_keys = ON');      // Enforce FK constraints (was silently off
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
-    title TEXT NOT NULL DEFAULT 'Нова сесія',
+    title TEXT NOT NULL DEFAULT 'New session',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     claude_session_id TEXT,
@@ -279,7 +295,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_msg_session ON messages(session_id);
   CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
-    title TEXT NOT NULL DEFAULT 'Нова задача',
+    title TEXT NOT NULL DEFAULT 'New task',
     description TEXT DEFAULT '',
     status TEXT NOT NULL DEFAULT 'backlog',
     sort_order REAL DEFAULT 0,
@@ -412,6 +428,7 @@ const TASK_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // abort orphaned tasks after 30 mi
 const sessionWatchers = new Map(); // sessionId → Set<WebSocket>
 const taskBuffers = new Map();     // taskId → accumulated text (for late subscribers)
 const chatBuffers = new Map();     // sessionId → accumulated text for direct chat (for catch-up on reconnect)
+const MAX_CHAT_BUFFER = 2 * 1024 * 1024; // 2 MB cap per session — prevents unbounded growth
 const sessionQueues = new Map();   // sessionId → [msg, ...] — queue persistence across WS reconnects (page refresh)
 
 // ─── Ask User (Internal MCP) ─────────────────────────────────────────────
@@ -475,8 +492,11 @@ async function startTask(task) {
           const names = [];
           for (const att of atts) {
             if (att.base64 && att.name) {
-              fs.writeFileSync(path.join(attDir, att.name), Buffer.from(att.base64, 'base64'));
-              names.push(att.name);
+              // Sanitize filename: strip directory traversal, keep only the base name
+              const safeName = path.basename(att.name);
+              if (!safeName) continue;
+              fs.writeFileSync(path.join(attDir, safeName), Buffer.from(att.base64, 'base64'));
+              names.push(safeName);
             }
           }
           if (names.length) {
@@ -706,9 +726,12 @@ function calcNextRun(scheduled_at, recurrence) {
 function scheduleNextRun(task) {
   if (!task.recurrence || !task.scheduled_at) return;
   const now = Math.floor(Date.now() / 1000);
-  // Find next future occurrence — handles server downtime gaps gracefully
+  // Find next future occurrence — handles server downtime gaps gracefully.
+  // Cap iterations to prevent runaway loops for very old tasks.
   let next = calcNextRun(task.scheduled_at, task.recurrence);
-  while (next <= now) next = calcNextRun(next, task.recurrence);
+  let guard = 0;
+  while (next <= now && guard < 10000) { next = calcNextRun(next, task.recurrence); guard++; }
+  if (guard >= 10000) { log.warn(`[schedule] Too many iterations for "${task.title}", skipping`); return; }
   // Respect end date
   if (task.recurrence_end_at && next > task.recurrence_end_at) {
     log.info(`[schedule] Recurrence series ended for "${task.title}"`);
@@ -862,6 +885,9 @@ class TelegramProxy {
     this._typingInterval = setInterval(() => {
       this._bot._callApi('sendChatAction', { chat_id: this._chatId, action: 'typing' }).catch(() => {});
     }, 4000);
+    // Safety net: auto-stop typing after 30 min to prevent interval leak if
+    // neither _finalize nor _sendError are called (e.g. subprocess crash)
+    this._typingSafetyTimer = setTimeout(() => this._stopTyping(), 30 * 60 * 1000);
     // Send initial typing action immediately
     this._bot._callApi('sendChatAction', { chat_id: this._chatId, action: 'typing' }).catch(() => {});
   }
@@ -870,6 +896,10 @@ class TelegramProxy {
     if (this._typingInterval) {
       clearInterval(this._typingInterval);
       this._typingInterval = null;
+    }
+    if (this._typingSafetyTimer) {
+      clearTimeout(this._typingSafetyTimer);
+      this._typingSafetyTimer = null;
     }
   }
 
@@ -1449,7 +1479,7 @@ function getNotificationContext(sessionId) {
   try {
     const sess = stmts.getSession.get(sessionId);
     if (!sess) return { sessionTitle: null, projectName: null };
-    const sessionTitle = (sess.title && sess.title !== 'Нова сесія') ? sess.title : null;
+    const sessionTitle = (sess.title && !DEFAULT_SESSION_TITLES.has(sess.title)) ? sess.title : null;
     let projectName = null;
     if (sess.workdir) {
       const proj = loadProjects().find(p => p.workdir === sess.workdir);
@@ -1531,7 +1561,7 @@ async function runCliSingle(p) {
     cli.send({ prompt: runPrompt, contentBlocks, sessionId: resumeId, model, maxTurns: effectiveMaxTurns, systemPrompt: sp, mcpServers, allowedTools: tools, abortController })
       .onText(t => {
         fullText += t;
-        chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + t);
+        { const _cb = (chatBuffers.get(sessionId) || '') + t; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
         ws.send(JSON.stringify({ type:'text', text:t, ...(tabId ? { tabId } : {}) }));
         if (++chunkCount % 5 === 0) {
           try { stmts.setPartialText.run(fullText, sessionId); } catch {}
@@ -1577,7 +1607,7 @@ async function runCliSingle(p) {
     if (resultData?.subtype === 'error_max_budget_usd') {
       const notice = '\n\n⚠️ **Budget limit reached** — agent stopped.\n\n';
       fullText += notice;
-      chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + notice);
+      { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
       break;
     }
@@ -1589,7 +1619,7 @@ async function runCliSingle(p) {
     if (continueCount >= MAX_AUTO_CONTINUES) {
       const notice = `\n\n⚠️ **Agent did not complete** after ${MAX_AUTO_CONTINUES} auto-continues. Continue manually if needed.\n\n`;
       fullText += notice;
-      chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + notice);
+      { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
       break;
     }
@@ -1602,7 +1632,7 @@ async function runCliSingle(p) {
       log.info('auto-continue (max_turns)', { sessionId, attempt: continueCount, maxAttempts: MAX_AUTO_CONTINUES, turnsUsed: resultData.num_turns });
       const notice = `\n\n---\n⏳ **Auto-continuing** (${continueCount}/${MAX_AUTO_CONTINUES}) — hit ${effectiveMaxTurns}-turn limit, resuming...\n\n`;
       fullText += notice;
-      chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + notice);
+      { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
     } else {
       // Any other non-success stop (error_during_execution, process crash, etc.) — auto-continue silently
@@ -1641,7 +1671,7 @@ async function runSshSingle(p) {
     ssh.send({ prompt: runPrompt, sessionId: resumeId, model, maxTurns: effectiveMaxTurns, systemPrompt: sp, allowedTools: tools, abortController })
       .onText(t => {
         fullText += t;
-        chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + t);
+        { const _cb = (chatBuffers.get(sessionId) || '') + t; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
         ws.send(JSON.stringify({ type:'text', text:t, ...(tabId ? { tabId } : {}) }));
         if (++chunkCount % 5 === 0) {
           try { stmts.setPartialText.run(fullText, sessionId); } catch {}
@@ -1672,7 +1702,7 @@ async function runSshSingle(p) {
     if (resultData?.subtype === 'error_max_budget_usd') {
       const notice = '\n\n⚠️ **Budget limit reached** — agent stopped.\n\n';
       fullText += notice;
-      chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + notice);
+      { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
       break;
     }
@@ -1680,7 +1710,7 @@ async function runSshSingle(p) {
     if (continueCount >= MAX_AUTO_CONTINUES) {
       const notice = `\n\n⚠️ **Agent did not complete** after ${MAX_AUTO_CONTINUES} auto-continues.\n\n`;
       fullText += notice;
-      chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + notice);
+      { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
       break;
     }
@@ -1688,7 +1718,7 @@ async function runSshSingle(p) {
     if (resultData?.subtype === 'error_max_turns') {
       const notice = `\n\n---\n⏳ **Auto-continuing** (${continueCount}/${MAX_AUTO_CONTINUES}) — resuming on remote...\n\n`;
       fullText += notice;
-      chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + notice);
+      { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
     }
     currentPrompt = 'Continue where you left off. Complete the remaining work.';
@@ -1730,7 +1760,7 @@ async function runMultiAgent(p) {
   }
 
   const planSummaryText = `📋 **${plan.plan}**\n🤖 ${plan.agents.map(a=>`${a.id}(${a.role})`).join(', ')}\n---\n`;
-  chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + planSummaryText);
+  { const _cb = (chatBuffers.get(sessionId) || '') + planSummaryText; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
   ws.send(JSON.stringify({ type:'text', text: planSummaryText, ...(tabId ? { tabId } : {}) }));
   ws.send(JSON.stringify({ type:'agent_plan', plan: plan.plan, agents: plan.agents.map(a => ({ id: a.id, role: a.role, task: a.task })), ...(tabId ? { tabId } : {}) }));
   try {
@@ -1760,7 +1790,7 @@ async function runMultiAgent(p) {
         const _res = () => { if (!_settled) { _settled = true; res(); } };
         // Agent resumes session to maintain context
         cli.send({ prompt:agentPrompt, sessionId: currentSessionId, model, maxTurns:Math.min(maxTurns||30, 50), systemPrompt:agentSp, mcpServers, allowedTools:agentTools, abortController })
-          .onText(t => { agentText+=t; chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + t); try { ws.send(JSON.stringify({ type:'text', text:t, agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} })
+          .onText(t => { agentText+=t; { const _cb = (chatBuffers.get(sessionId) || '') + t; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); } try { ws.send(JSON.stringify({ type:'text', text:t, agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} })
           .onTool((n,i) => { if (n !== 'ask_user' && n !== 'notify_user') { try { ws.send(JSON.stringify({ type:'tool', tool:n, input:(i||'').substring(0,600), agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} } try { stmts.addMsg.run(sessionId,'assistant','tool',(i||'').substring(0,10000),n,agent.id,null,null); } catch {} })
           .onSessionId(sid => { currentSessionId = sid; })
           .onError(err => { try { ws.send(JSON.stringify({ type:'agent_status', agent:agent.id, status:`❌ ${err.substring(0,200)}`, ...(tabId ? { tabId } : {}) })); } catch {} _res(); })
@@ -1788,7 +1818,7 @@ Provide a clear summary of what was accomplished. Be concise.`;
     let _settled = false;
     const _res = () => { if (!_settled) { _settled = true; res(); } };
     cli.send({ prompt:summaryPrompt, sessionId: currentSessionId, model, maxTurns:1, allowedTools:[], abortController })
-      .onText(t => { summaryText+=t; chatBuffers.set(sessionId, (chatBuffers.get(sessionId) || '') + t); try { ws.send(JSON.stringify({ type:'text', text:t, agent:'summarizer', ...(tabId ? { tabId } : {}) })); } catch {} })
+      .onText(t => { summaryText+=t; { const _cb = (chatBuffers.get(sessionId) || '') + t; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); } try { ws.send(JSON.stringify({ type:'text', text:t, agent:'summarizer', ...(tabId ? { tabId } : {}) })); } catch {} })
       .onSessionId(sid => { currentSessionId = sid; try { stmts.updateClaudeId.run(sid, sessionId); } catch {} })
       .onError(() => _res())
       .onDone(() => _res());
@@ -2088,7 +2118,7 @@ app.get('/api/tasks/running-sessions', (req, res) => {
   res.json(rows.map(r => r.session_id));
 });
 app.post('/api/tasks', (req, res) => {
-  const { title='Нова задача', description='', notes='', status='backlog', sort_order=0, session_id=null, workdir=null,
+  const { title=i18nTask(), description='', notes='', status='backlog', sort_order=0, session_id=null, workdir=null,
           model='sonnet', mode='auto', agent_mode='single', max_turns=30, attachments=null,
           depends_on=null, chain_id=null, source_session_id=null,
           scheduled_at=null, recurrence=null, recurrence_end_at=null } = req.body;
@@ -2135,7 +2165,18 @@ app.put('/api/tasks/:id', (req, res) => {
   res.json(updated);
 });
 app.delete('/api/tasks/:id', (req, res) => {
-  stmts.deleteTask.run(req.params.id); res.json({ ok: true });
+  const tid = req.params.id;
+  // Abort running subprocess if this task is in progress
+  const taskAbort = runningTaskAborts.get(tid);
+  if (taskAbort) {
+    stoppingTasks.add(tid);
+    try { taskAbort.abort(); } catch {}
+  }
+  // Kill worker process directly if PID is known
+  const task = stmts.getTask.get(tid);
+  if (task?.worker_pid) killByPid(task.worker_pid);
+  stmts.deleteTask.run(tid);
+  res.json({ ok: true });
 });
 
 // ─── Task Dispatch (Chat → Kanban chain) ─────────────────────────────────
@@ -2235,7 +2276,7 @@ app.get('/api/sessions', (req,res) => {
   res.json(workdir ? stmts.getSessionsByWorkdir.all(workdir) : stmts.getSessions.all());
 });
 app.post('/api/sessions', (req, res) => {
-  const { title = 'Нова сесія', workdir = null, model = 'sonnet', mode = 'auto', agentMode = 'single', engine = null } = req.body || {};
+  const { title = i18nSession(), workdir = null, model = 'sonnet', mode = 'auto', agentMode = 'single', engine = null } = req.body || {};
   const id = genId();
   stmts.createSession.run(id, String(title).substring(0, 200), '[]', '[]', mode, agentMode, model, engine, workdir || null);
   res.json(stmts.getSession.get(id));
@@ -2286,10 +2327,34 @@ app.put('/api/sessions/:id', (req, res) => {
   res.json({ok:true});
 });
 app.get('/api/sessions/:id/tasks-count', (req,res) => { res.json(stmts.countTasksBySession.get(req.params.id)); });
-app.delete('/api/sessions/:id', (req,res) => { stmts.deleteTasksBySession.run(req.params.id); stmts.deleteSession.run(req.params.id); sessionQueues.delete(req.params.id); res.json({ok:true}); });
+app.delete('/api/sessions/:id', (req,res) => {
+  const sid = req.params.id;
+  // Abort any running Claude subprocess for this session before deleting
+  const active = activeTasks.get(sid);
+  if (active) {
+    try { active.abortController.abort(); } catch {}
+    if (active.cleanupTimer) clearTimeout(active.cleanupTimer);
+    activeTasks.delete(sid);
+  }
+  chatBuffers.delete(sid);
+  stmts.deleteTasksBySession.run(sid);
+  stmts.deleteSession.run(sid);
+  sessionQueues.delete(sid);
+  res.json({ok:true});
+});
 app.post('/api/sessions/bulk-delete', (req,res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'no ids' });
+  // Abort running subprocesses before deleting
+  for (const id of ids) {
+    const active = activeTasks.get(id);
+    if (active) {
+      try { active.abortController.abort(); } catch {}
+      if (active.cleanupTimer) clearTimeout(active.cleanupTimer);
+      activeTasks.delete(id);
+    }
+    chatBuffers.delete(id);
+  }
   const del = db.transaction(() => { for (const id of ids) { stmts.deleteTasksBySession.run(id); stmts.deleteSession.run(id); sessionQueues.delete(id); } });
   del();
   res.json({ ok: true, deleted: ids.length });
@@ -3537,7 +3602,7 @@ wss.on('connection', (ws) => {
       let isNewSession = false;
       if (!localSessionId || !existSess) {
         localSessionId = genId();
-        stmts.createSession.run(localSessionId,'Нова сесія','[]','[]',msg.mode||'auto',msg.agentMode||'single',msg.model||'sonnet',msg.engine||null,msg.workdir||null);
+        stmts.createSession.run(localSessionId,i18nSession(),'[]','[]',msg.mode||'auto',msg.agentMode||'single',msg.model||'sonnet',msg.engine||null,msg.workdir||null);
         isNewSession = true;
       } else {
         localClaudeId = existSess.claude_session_id || undefined;
@@ -3612,7 +3677,7 @@ wss.on('connection', (ws) => {
       stmts.updateConfig.run(JSON.stringify(mIds),JSON.stringify(effectiveSkills),mode,agentMode,model,workdir||null,localSessionId);
 
       // Auto-title: use LLM-generated title if available, otherwise truncate message
-      if (isNewSession || existSess?.title==='Нова сесія') {
+      if (isNewSession || DEFAULT_SESSION_TITLES.has(existSess?.title)) {
         const title = classifiedTitle || (userMessage.substring(0,60)+(userMessage.length>60?'...':''));
         stmts.updateTitle.run(title, localSessionId);
         ws.send(JSON.stringify({ type:'session_title', sessionId:localSessionId, title, tabId: effectiveTabId }));
@@ -3760,12 +3825,12 @@ wss.on('connection', (ws) => {
         if (tabQ.length > 0) {
           const next = tabQ.shift();
           if (tabQ.length === 0) { delete ws._tabQueue[effectiveTabId]; sessionQueues.delete(effectiveTabId); }
-          ws.send(queuePayload(effectiveTabId));
+          try { ws.send(queuePayload(effectiveTabId)); } catch {}
           processChat(next).catch(err => log.error('processChat tab-queue error', { message: err.message }));
         } else {
           delete ws._tabQueue[effectiveTabId];
           sessionQueues.delete(effectiveTabId);
-          ws.send(JSON.stringify({ type: 'queue_update', tabId: effectiveTabId, pending: 0, items: [] }));
+          try { ws.send(JSON.stringify({ type: 'queue_update', tabId: effectiveTabId, pending: 0, items: [] })); } catch {}
           // Fix: WS-reconnect scenario — old WS had empty queue but a newer WS (page refresh / network blip)
           // may have restored queue items from sessionQueues into its own _tabQueue (shared-ref).
           // Since the shared-ref persists after sessionQueues.delete, check sessionWatchers for a live
@@ -3788,10 +3853,10 @@ wss.on('connection', (ws) => {
         ws._abort = null;
         if (ws._queue.length > 0) {
           const next = ws._queue.shift();
-          ws.send(queuePayload(null));
+          try { ws.send(queuePayload(null)); } catch {}
           try { await processChat(next); } catch (err) { log.error('processChat legacy-queue error', { message: err.message }); }
         } else {
-          ws.send(JSON.stringify({ type: 'queue_update', pending: 0, items: [] }));
+          try { ws.send(JSON.stringify({ type: 'queue_update', pending: 0, items: [] })); } catch {}
         }
       } else if (isStale && effectiveTabId) {
         // Page refresh scenario: task finished on old (closed) WS but queue items
@@ -3820,7 +3885,7 @@ wss.on('connection', (ws) => {
       legacySessionId = msg.sessionId || genId();
       const existing = stmts.getSession.get(legacySessionId);
       if (existing) legacyClaudeId = existing.claude_session_id || undefined;
-      else stmts.createSession.run(legacySessionId,'Нова сесія','[]','[]',msg.mode||'auto',msg.agentMode||'single',msg.model||'sonnet',msg.engine||null,null);
+      else stmts.createSession.run(legacySessionId,i18nSession(),'[]','[]',msg.mode||'auto',msg.agentMode||'single',msg.model||'sonnet',msg.engine||null,null);
       ws.send(JSON.stringify({ type:'session_started', sessionId:legacySessionId }));
       return;
     }
@@ -3850,6 +3915,11 @@ wss.on('connection', (ws) => {
           if (!ws._tabQueue[tabId]) {
             ws._tabQueue[tabId] = sessionQueues.get(tabId) || [];
             sessionQueues.set(tabId, ws._tabQueue[tabId]);
+          }
+          // Prevent unbounded queue growth
+          if (ws._tabQueue[tabId].length >= 20) {
+            ws.send(JSON.stringify({ type: 'error', error: 'Queue full (max 20). Wait for current task to finish.', tabId }));
+            return;
           }
           msg._queueId = ++ws._queueIdCounter;
           ws._tabQueue[tabId].push(msg);
