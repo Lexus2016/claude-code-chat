@@ -3884,9 +3884,15 @@ wss.on('connection', (ws) => {
     if (msg.type==='start_session') {
       legacySessionId = msg.sessionId || genId();
       const existing = stmts.getSession.get(legacySessionId);
-      if (existing) legacyClaudeId = existing.claude_session_id || undefined;
-      else stmts.createSession.run(legacySessionId,i18nSession(),'[]','[]',msg.mode||'auto',msg.agentMode||'single',msg.model||'sonnet',msg.engine||null,null);
-      ws.send(JSON.stringify({ type:'session_started', sessionId:legacySessionId }));
+      if (existing) {
+        legacyClaudeId = existing.claude_session_id || undefined;
+        // Don't send session_started for existing sessions — the client's session_started
+        // handler resets streaming.el which destroys the just-restored _bgTxt bubble on tab switch.
+        // session_started is only needed for NEW sessions (to map temp tab ID → real session ID).
+      } else {
+        stmts.createSession.run(legacySessionId,i18nSession(),'[]','[]',msg.mode||'auto',msg.agentMode||'single',msg.model||'sonnet',msg.engine||null,null);
+        ws.send(JSON.stringify({ type:'session_started', sessionId:legacySessionId }));
+      }
       return;
     }
 
