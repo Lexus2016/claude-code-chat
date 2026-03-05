@@ -184,6 +184,8 @@ Three modes in the "Mode" toolbar group control what Claude is allowed to do:
 
 **Plan** — read-only mode. Claude can explore the project, analyze code, and produce a plan, but **cannot modify files or run commands**. The tool list is restricted to read-only operations (View, Grep, Glob, ListDir). Use this when you want analysis and a plan of action before committing to changes — especially on unfamiliar codebases or risky refactorings.
 
+When Claude produces a plan in Plan mode, an **"Execute Plan"** button appears at the bottom of the response. Click it — and Studio automatically switches to Auto mode and instructs Claude to execute the plan step by step. This creates a smooth workflow: analyze first, then execute with one click.
+
 **Task** — explicit execution mode. Same full tool access as Auto, with an added system instruction signaling this is an execution task. Practically similar to Auto but makes intent clear.
 
 **How to switch:** Click Auto / Plan / Task in the toolbar's "Mode" group.
@@ -365,9 +367,11 @@ After setup, Claude Code CLI will use your OpenRouter API key and the model you 
 | 🔄 Auto-continue | Hits turn limit mid-task? Resumes automatically |
 | ↗️ Fork conversation | Continue from any message in a new chat |
 | 🔌 MCP servers | Connect GitHub, Slack, databases, and more |
+| 🎯 Execute Plan button | In Plan mode, click to auto-switch to Auto mode and run the plan |
 | 🎛 Chat modes | Auto (full access), Plan (read-only analysis), Task (explicit execution) |
 | 🧠 Skills & auto-skills | 28 specialist personas; auto-classified per message with ⚡ Auto |
 | ⚙️ Model & turns | Haiku / Sonnet / Opus; adjustable turn budget (1–200) with auto-continue |
+| 🔀 Auto mode switch | Claude can switch modes mid-task (e.g., planning → execution) |
 | 📁 File browser | Browse, preview, and attach files with `@filename` |
 | 🖼 Vision | Paste screenshots — Claude sees and analyzes them |
 | 🗂 Projects | Separate workspaces with their own file directories |
@@ -375,6 +379,7 @@ After setup, Claude Code CLI will use your OpenRouter API key and the model you 
 | 🔗 Remote Access | One-click public URL via cloudflared or ngrok — access Studio from anywhere |
 | 📱 Mobile UI | Touch-optimized responsive layout for all pages — Chat, Kanban, Schedule |
 | 🔒 File locks | Multiple agents on same codebase — no conflicts |
+| 🔄 Tab drag-and-drop | Reorder chat tabs by dragging — organize your workspace your way |
 | 💾 History | Everything saved to SQLite, resume anytime |
 | 📊 Rate limit alerts | Warnings at 80/90/95%, live countdown to reset |
 | 🔒 Auth | Password login, 30-day tokens, data stays on your machine |

@@ -932,6 +932,9 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .tab-new { padding: 0 13px; display: flex; align-items: center; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; transition: color .1s; flex-shrink: 0; background: none; border: none; }
 .tab-new:hover { color: var(--text); }
 .tab-rename-input { background: transparent; border: none; border-bottom: 1.5px solid var(--accent); color: var(--text); font-size: 13px; font-family: inherit; padding: 0 2px; outline: none; width: 100%; min-width: 40px; }
+.tab.dragging { opacity: .4; background: var(--s3); }
+.tab.drag-over { background: var(--accent); color: #fff; }
+.tab.drag-over::after { background: #fff; }
 
 /* ─── Session info bar ─── */
 .sess-bar { display:flex; align-items:center; gap:6px; padding:3px 14px; font-size:11px; color:var(--text-dim); border-bottom:1px solid var(--border); user-select:none; min-height:24px; flex-shrink:0; }
@@ -944,6 +947,9 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .msg-retry-indicator { margin:2px 12px 6px; font-size:11px; color:var(--text-dim); opacity:.6; }
 .msg-interrupted { margin:4px 12px 6px; font-size:11px; color:var(--yellow,#e5c07b); opacity:.8; }
 .msg-done-badge { margin:6px 14px 2px; padding:5px 10px; font-size:11px; color:var(--green,#98c379); opacity:.75; border-top:1px solid rgba(139,148,158,.06); }
+.execute-plan-btn { margin:8px 14px 6px; padding:8px 16px; font-size:13px; font-weight:500; color:#fff; background:var(--accent); border:none; border-radius:var(--r-sm); cursor:pointer; transition:all .15s; }
+.execute-plan-btn:hover { background:var(--accent-hover,#3b82f6); transform:translateY(-1px); }
+.execute-plan-btn:active { transform:translateY(0); }
 
 /* ─── Message timestamps ─── */
 .msg-time { display:flex; align-items:center; gap:6px; margin:3px 2px 0; font-size:10px; color:var(--muted); opacity:.55; line-height:1; user-select:none; transition:opacity .15s; }
@@ -3404,6 +3410,14 @@ function handleWsMsg(d) {
       break;
     }
 
+    case 'ui_state_change': {
+      // Agent requested UI state update (mode, model, agent)
+      if (d.mode) { curMode = d.mode; syncBtn('mode', d.mode); }
+      if (d.model) { curModel = d.model; syncBtn('model', d.model); }
+      if (d.agent) { curAgent = d.agent; syncBtn('agent', d.agent); }
+      break;
+    }
+
     case 'skills_auto': {
       // Server classified skills via LLM — update UI
       if (d.skills?.length) {
@@ -3462,6 +3476,30 @@ function handleWsMsg(d) {
           if (footer) streaming.el.insertBefore(badge, footer); else streaming.el.appendChild(badge);
         }
         markDone(streaming.el);
+
+        // ─── Plan Mode: Show "Execute Plan" button ──────────────────────────────
+        // When in planning mode and response contains a plan, offer to execute it
+        const _planText = streaming.txt; // Save before clearing
+        if (curMode === 'planning' && streaming.el && _planText && _planText.length > 50) {
+          const planKeywords = /##\s*(plan|план|implementation|реалізація|steps|кроки)|\*\*(plan|план|step)\*\*|^\s*[-•]\s+\d+\.|^\s*\d+\.\s+\w+/im;
+          if (planKeywords.test(_planText) || _planText.includes('## ') || _planText.includes('**Step')) {
+            const execBtn = document.createElement('button');
+            execBtn.className = 'execute-plan-btn';
+            execBtn.innerHTML = '▶️ Execute Plan';
+            execBtn.title = 'Switch to Auto mode and execute this plan';
+            execBtn.onclick = () => {
+              // Switch mode to auto
+              curMode = 'auto';
+              syncBtn('mode', 'auto');
+              // Send execution prompt
+              const execPrompt = 'Execute the plan above. Start with step 1.';
+              sendChat(execPrompt);
+              execBtn.remove();
+            };
+            streaming.el.appendChild(execBtn);
+          }
+        }
+
         streaming.el = null; streaming.txt = '';
         streaming.toolCounts = {}; streaming.toolLog = []; // reset tool tracking
         // Clear retry badge on successful completion
@@ -5014,7 +5052,31 @@ function renderTabs() {
   for (const tab of openTabs) {
     const el = document.createElement('div');
     el.className = 'tab' + (tab.id === activeTabId ? ' active' : '');
+    el.dataset.tabId = tab.id;
+    el.draggable = true;
     el.onclick = () => switchTab(tab.id);
+    // Drag-and-drop handlers
+    el.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', tab.id);
+      el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const dragId = e.dataTransfer.getData('text/plain');
+      if (dragId === tab.id) return;
+      const fromIdx = openTabs.findIndex(t => t.id === dragId);
+      const toIdx = openTabs.findIndex(t => t.id === tab.id);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = openTabs.splice(fromIdx, 1);
+      openTabs.splice(toIdx, 0, moved);
+      renderTabs();
+      saveUIState();
+    });
     let dot = '';
     if (tab.generating) dot = '<div class="tab-dot spinning"></div>';
     else if (tab.done) dot = '<div class="tab-dot done"></div>';

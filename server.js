@@ -441,6 +441,9 @@ const ASK_USER_SECRET = require('crypto').randomBytes(16).toString('hex');
 // ─── Notify User (Internal MCP) ──────────────────────────────────────────
 const NOTIFY_SECRET = require('crypto').randomBytes(16).toString('hex');
 
+// ─── Set UI State (Internal MCP) ──────────────────────────────────────────
+const SET_UI_STATE_SECRET = require('crypto').randomBytes(16).toString('hex');
+
 function broadcastToSession(sessionId, data) {
   const watchers = sessionWatchers.get(sessionId);
   if (!watchers?.size) return;
@@ -1317,6 +1320,11 @@ const ASK_USER_INSTRUCTION = `\n\nYou have access to an "ask_user" tool (via MCP
 
 const NOTIFY_USER_INSTRUCTION = `\n\nYou have access to a "notify_user" tool (via MCP server "_ccs_notify"). Use it to send non-blocking progress updates to the user. Call notify_user for milestones ("Completed database migration"), warnings ("Rate limit approaching"), errors ("Test suite has 3 failures"), or progress tracking (with current/total steps). Unlike ask_user, notify_user does NOT pause execution — you continue working immediately. Do NOT overuse it: send notifications only for meaningful status changes, not for every minor step.`;
 
+const SET_UI_STATE_INSTRUCTION = `\n\nYou have access to a "set_ui_state" tool (via MCP server "_ccs_set_ui_state"). You MUST call this tool when you transition between phases so the UI toolbar reflects your current state. Specifically:
+- When you finish PLANNING and start EXECUTING: call set_ui_state({ mode: "auto" }) IMMEDIATELY
+- When you switch models: call set_ui_state({ model: "opus" }) or set_ui_state({ model: "haiku" })
+This is REQUIRED behavior, not optional. The tool is fire-and-forget — execution continues immediately.`;
+
 // Status line + tool call instructions (~100 tokens vs original ~170)
 const STATUS_LINE_INSTRUCTION = `\n\nIMPORTANT: Always end your response with a single clear status line separated by "---". Use one of these patterns:
 - "✅ Done — [brief summary of what was completed]." when the task is fully finished.
@@ -1382,6 +1390,7 @@ function buildSystemPrompt(skillIds, config) {
 
   prompt += ASK_USER_INSTRUCTION;
   prompt += NOTIFY_USER_INSTRUCTION;
+  prompt += SET_UI_STATE_INSTRUCTION;
   prompt += STATUS_LINE_INSTRUCTION;
   prompt += TOOL_CALL_INSTRUCTION;
 
@@ -1954,6 +1963,40 @@ app.post('/api/internal/notify', express.json(), (req, res) => {
 
   // Also broadcast to session watchers (Kanban task viewers)
   broadcastToSession(sessionId, JSON.parse(payload));
+
+  res.json({ ok: true });
+});
+
+// ─── Set UI State endpoint (non-blocking, fire-and-forget) ───────────────────
+app.post('/api/internal/set-ui-state', express.json(), (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  if (authHeader !== `Bearer ${SET_UI_STATE_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { sessionId, mode, model, agent } = req.body;
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Missing sessionId' });
+  }
+  if (!mode && !model && !agent) {
+    return res.status(400).json({ error: 'At least one of mode, model, or agent must be provided' });
+  }
+
+  // Broadcast to session watchers — UI will receive via WebSocket
+  const payload = { type: 'ui_state_change' };
+  if (mode) payload.mode = mode;
+  if (model) payload.model = model;
+  if (agent) payload.agent = agent;
+  payload.tabId = sessionId;
+
+  // Route via active task proxy (survives WS reconnects)
+  const activeTask = activeTasks.get(sessionId);
+  if (activeTask?.proxy) {
+    try { activeTask.proxy.send(JSON.stringify(payload)); } catch {}
+  }
+
+  // Also broadcast to session watchers
+  broadcastToSession(sessionId, payload);
 
   res.json({ ok: true });
 });
@@ -3153,6 +3196,15 @@ async function processTelegramChat({ sessionId, text, userId, chatId, attachment
         NOTIFY_SECRET: NOTIFY_SECRET,
       },
     };
+    mcpServers['_ccs_set_ui_state'] = {
+      command: 'node',
+      args: [path.join(__dirname, 'mcp-set-ui-state.js')],
+      env: {
+        SET_UI_STATE_SERVER_URL: `http://127.0.0.1:${PORT}`,
+        SET_UI_STATE_SESSION_ID: sessionId,
+        SET_UI_STATE_SECRET: SET_UI_STATE_SECRET,
+      },
+    };
 
     // Save last user msg for reconnect recovery
     stmts.setLastUserMsg.run(text, sessionId);
@@ -3719,6 +3771,15 @@ wss.on('connection', (ws) => {
           NOTIFY_SERVER_URL: `http://127.0.0.1:${PORT}`,
           NOTIFY_SESSION_ID: localSessionId,
           NOTIFY_SECRET: NOTIFY_SECRET,
+        },
+      };
+      mcpServers['_ccs_set_ui_state'] = {
+        command: 'node',
+        args: [path.join(__dirname, 'mcp-set-ui-state.js')],
+        env: {
+          SET_UI_STATE_SERVER_URL: `http://127.0.0.1:${PORT}`,
+          SET_UI_STATE_SESSION_ID: localSessionId,
+          SET_UI_STATE_SECRET: SET_UI_STATE_SECRET,
         },
       };
 
