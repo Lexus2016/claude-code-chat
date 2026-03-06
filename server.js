@@ -3847,10 +3847,13 @@ wss.on('connection', (ws) => {
       // ─── LLM-based task classification ──────────────────────────────
       // When autoSkill=true, classify the user message with haiku (~10-15s via CLI).
       // Returns both specialist skills AND a short chat title in one call.
+      // Skip on resumed sessions (localClaudeId set) — skills already baked into session
+      // context, no need to pay for a Haiku call on every subsequent message.
       let effectiveSkills = sIds;
       let classifiedTitle = '';
-      log.info('[classify] start', { autoSkill, sIds, msgLen: userMessage.length });
-      if (autoSkill) {
+      const shouldClassify = autoSkill && !localClaudeId;
+      log.info('[classify] start', { autoSkill, shouldClassify, sIds, msgLen: userMessage.length });
+      if (shouldClassify) {
         try {
           proxy.send(JSON.stringify({ type:'agent_status', status:'⚡ Classifying task...', statusKey:'status.classifying', tabId: effectiveTabId }));
           const classification = await classifyTask(userMessage, sIds, config, workdir || WORKDIR);
@@ -3882,8 +3885,11 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type:'session_title', sessionId:localSessionId, title, tabId: effectiveTabId }));
       }
 
-      // Build system prompt — cached by skill combination, skill files cached in memory
-      const systemPrompt = buildSystemPrompt(effectiveSkills, config);
+      // Build system prompt — cached by skill combination, skill files cached in memory.
+      // Skipped on resumed sessions (localClaudeId set): claude-cli.js blocks --system-prompt
+      // when --resume is used (cryptographic signatures on thinking blocks), so building
+      // it would be pure waste. System prompt was already set on the first turn of this session.
+      const systemPrompt = localClaudeId ? undefined : buildSystemPrompt(effectiveSkills, config);
 
       const mcpServers = {};
       for (const mid of mIds) {
