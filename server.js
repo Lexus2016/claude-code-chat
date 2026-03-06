@@ -409,6 +409,8 @@ const stmts = {
   addMsg: db.prepare(`INSERT INTO messages (session_id,role,type,content,tool_name,agent_id,reply_to_id,attachments) VALUES (?,?,?,?,?,?,?,?)`),
   addTelegramMsg: db.prepare(`INSERT INTO messages (session_id,role,type,content,tool_name,agent_id,reply_to_id,attachments,source) VALUES (?,?,?,?,?,?,?,?,'telegram')`),
   getMsgs: db.prepare(`SELECT * FROM messages WHERE session_id=? ORDER BY id ASC`),
+  // Lightweight: strip tool content (frontend only needs tool_name + agent_id for badge counts)
+  getMsgsLite: db.prepare(`SELECT id, session_id, role, type, CASE WHEN type='tool' THEN '' ELSE content END AS content, tool_name, agent_id, created_at, reply_to_id, attachments, source FROM messages WHERE session_id=? ORDER BY id ASC`),
   getMsgsPaginated: db.prepare(`SELECT * FROM messages WHERE session_id=? AND (type IS NULL OR type != 'tool') ORDER BY id ASC LIMIT ? OFFSET ?`),
   countMsgs: db.prepare(`SELECT COUNT(*) AS total FROM messages WHERE session_id=? AND (type IS NULL OR type != 'tool')`),
   setLastUserMsg: db.prepare(`UPDATE sessions SET last_user_msg=? WHERE id=?`),
@@ -464,6 +466,9 @@ const stmts = {
     FROM messages
     WHERE session_id = ?
   `),
+  // getSession endpoint helpers — pre-compiled to avoid re-prepare on every load
+  hasRunningTask: db.prepare(`SELECT id FROM tasks WHERE session_id=? AND status='in_progress' LIMIT 1`),
+  getChainTasks:  db.prepare(`SELECT id, title, status, depends_on, chain_id FROM tasks WHERE source_session_id=? ORDER BY sort_order ASC`),
 };
 // Auto-sanitize ALL prepared statements — prevents "Too few parameter values"
 // on every code path (chat, tasks, queue, reconnect, telegram, etc.)
@@ -627,7 +632,7 @@ async function startTask(task) {
             broadcastToSession(sessionId, { type: 'text', text: t, tabId: sessionId });
           })
           .onTool((name, inp) => {
-            try { stmts.addMsg.run(sessionId, 'assistant', 'tool', inp || '', name, null, null, null); } catch {}
+            try { stmts.addMsg.run(sessionId, 'assistant', 'tool', (inp || '').substring(0, 500), name, null, null, null); } catch {}
             if (name !== 'ask_user' && name !== 'notify_user' && name !== 'set_ui_state') {
               broadcastToSession(sessionId, { type: 'tool', tool: name, input: (inp || '').substring(0, 600), tabId: sessionId });
             }
@@ -1259,6 +1264,12 @@ function buildUserContent(text, attachments = []) {
     if (att.type && att.type.startsWith('image/')) {
       // Vision block — base64 image
       blocks.push({ type: 'image', source: { type: 'base64', media_type: att.type, data: att.base64 } });
+    } else if (att.type === 'ssh') {
+      // SSH host reference — inject full connection info as text context
+      let sshText = `[SSH Host: ${att.label || att.host}]\nHost: ${att.host}:${att.port || 22}`;
+      if (att.sshKeyPath) sshText += `\nSSH Key: ${att.sshKeyPath}`;
+      else if (att.password) sshText += `\nPassword: ${att.password}`;
+      blocks.push({ type: 'text', text: sshText });
     } else {
       // Text / PDF — decode base64 and embed as readable text block
       let content = '(unable to decode)';
@@ -1653,15 +1664,15 @@ async function runCliSingle(p) {
       .onThinking(t => { ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
         if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
-          try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,10000),name,null,null,null); } catch {}
+          try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
           return;
         }
         if (name === 'AskUserQuestion') {
-          try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,10000),name,null,null,null); } catch {}
+          try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
           return;
         }
         ws.send(JSON.stringify({ type:'tool', tool:name, input:(inp||'').substring(0,600), ...(tabId ? { tabId } : {}) }));
-        try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,10000),name,null,null,null); } catch {}
+        try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
       })
       .onSessionId(sid => { newCid = sid; try { stmts.updateClaudeId.run(sid, sessionId); } catch {} })
       .onRateLimit(info => { ws.send(JSON.stringify({ type:'rate_limit', info, ...(tabId ? { tabId } : {}) })); })
@@ -1789,11 +1800,11 @@ async function runSshSingle(p) {
       .onThinking(t => { ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
         if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
-          try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,10000),name,null,null,null); } catch {}
+          try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
           return;
         }
         ws.send(JSON.stringify({ type:'tool', tool:name, input:(inp||'').substring(0,600), ...(tabId ? { tabId } : {}) }));
-        try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,10000),name,null,null,null); } catch {}
+        try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
       })
       .onSessionId(sid => { newCid = sid; try { stmts.updateClaudeId.run(sid, sessionId); } catch {} })
       .onRateLimit(info => { ws.send(JSON.stringify({ type:'rate_limit', info, ...(tabId ? { tabId } : {}) })); })
@@ -1904,7 +1915,7 @@ async function runMultiAgent(p) {
         // Agent resumes session to maintain context
         cli.send({ prompt:agentPrompt, sessionId: currentSessionId, model, maxTurns:Math.min(maxTurns||30, 50), systemPrompt:agentSp, mcpServers, allowedTools:agentTools, abortController })
           .onText(t => { agentText+=t; { const _cb = (chatBuffers.get(sessionId) || '') + t; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); } try { ws.send(JSON.stringify({ type:'text', text:t, agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} })
-          .onTool((n,i) => { if (n !== 'ask_user' && n !== 'notify_user' && n !== 'set_ui_state') { try { ws.send(JSON.stringify({ type:'tool', tool:n, input:(i||'').substring(0,600), agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} } try { stmts.addMsg.run(sessionId,'assistant','tool',(i||'').substring(0,10000),n,agent.id,null,null); } catch {} })
+          .onTool((n,i) => { if (n !== 'ask_user' && n !== 'notify_user' && n !== 'set_ui_state') { try { ws.send(JSON.stringify({ type:'tool', tool:n, input:(i||'').substring(0,600), agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} } try { stmts.addMsg.run(sessionId,'assistant','tool',(i||'').substring(0,500),n,agent.id,null,null); } catch {} })
           .onSessionId(sid => { currentSessionId = sid; })
           .onError(err => { try { ws.send(JSON.stringify({ type:'agent_status', agent:agent.id, status:`❌ ${err.substring(0,200)}`, ...(tabId ? { tabId } : {}) })); } catch {} _res(); })
           .onDone(() => _res());
@@ -2440,14 +2451,14 @@ app.post('/api/sessions/reorder', (req, res) => {
 app.get('/api/sessions/:id', (req,res) => {
   const s = stmts.getSession.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'Not found' });
-  s.messages = stmts.getMsgs.all(req.params.id);
+  // Lite: strip tool content — frontend only needs tool_name + agent_id for badge counts
+  s.messages = stmts.getMsgsLite.all(req.params.id);
   // Include running-task flag so client can show spinner immediately on load
-  const rt = db.prepare(`SELECT id FROM tasks WHERE session_id=? AND status='in_progress' LIMIT 1`).get(req.params.id);
-  s.hasRunningTask = !!rt;
+  s.hasRunningTask = !!stmts.hasRunningTask.get(req.params.id);
   // True when a direct-chat streaming session is alive in memory (not a Kanban task)
   s.isChatRunning = activeTasks.has(req.params.id);
   // Include chain tasks dispatched FROM this session (for chain progress widget restoration)
-  const chainTasks = db.prepare(`SELECT id, title, status, depends_on, chain_id FROM tasks WHERE source_session_id=? ORDER BY sort_order ASC`).all(req.params.id);
+  const chainTasks = stmts.getChainTasks.all(req.params.id);
   if (chainTasks.length) {
     // Group by chain_id (a session could have dispatched multiple chains)
     const chains = {};
@@ -3802,7 +3813,15 @@ wss.on('connection', (ws) => {
       }
       const replyToId = sqlVal(reply_to?.id ?? null);
       const engineMessage = replyQuote + userMessage;
-      const userContent = buildUserContent(engineMessage, attachments);
+      // Enrich SSH attachments with stored auth credentials (key path or decrypted password)
+      const enrichedAttachments = attachments.map(att => {
+        if (att.type !== 'ssh' || !att.hostId) return att;
+        const hosts = loadRemoteHosts();
+        const rh = hosts.find(h => h.id === att.hostId);
+        if (!rh) return att;
+        return { ...att, sshKeyPath: rh.sshKeyPath || '', password: decryptPassword(rh.password) || '' };
+      });
+      const userContent = buildUserContent(engineMessage, enrichedAttachments);
 
       if (!retry) {
         const attJson = attachments.length ? JSON.stringify(attachments.map(a => ({ type: a.type, name: a.name, base64: a.base64 }))) : null;

@@ -5852,7 +5852,11 @@ function selectSshHost(idx) {
     inEl.value = val.slice(0, hashIdx) + val.slice(cur);
     inEl.selectionStart = inEl.selectionEnd = hashIdx;
   }
-  _closeSshPopup();
+  // Keep popup open so the user can pick additional SSH hosts without retyping #
+  const s = $i('sshSearch');
+  s.value = '';
+  _sshActiveIdx = -1;
+  _renderSshList('');
   inEl.focus();
 }
 
@@ -5866,7 +5870,12 @@ function selectAtFile(idx) {
     inEl.value = val.slice(0, atIdx) + val.slice(cur);
     inEl.selectionStart = inEl.selectionEnd = atIdx;
   }
-  _closeAtPopup(); inEl.focus();
+  // Keep popup open so the user can pick additional files without retyping @
+  const s = $i('atSearch');
+  s.value = '';
+  _atActiveIdx = -1;
+  _fetchAtFiles('');
+  inEl.focus();
 }
 
 function onAtSearch(query) {
@@ -5921,7 +5930,8 @@ inEl.addEventListener('keydown', e => {
   if (e.key === 'Escape') { _closeAtPopup(); e.preventDefault(); return; }
   if (e.key === 'ArrowDown') { e.preventDefault(); _atActiveIdx = Math.min(_atActiveIdx + 1, _atFiles.length - 1); _renderAtList(); $i('atList').querySelector('.active')?.scrollIntoView({ block: 'nearest' }); return; }
   if (e.key === 'ArrowUp') { e.preventDefault(); _atActiveIdx = Math.max(_atActiveIdx - 1, -1); _renderAtList(); return; }
-  if ((e.key === 'Enter' || e.key === 'Tab') && _atActiveIdx >= 0) { e.preventDefault(); selectAtFile(_atActiveIdx); return; }
+  if (e.key === 'Enter') { e.preventDefault(); if (_atActiveIdx >= 0) selectAtFile(_atActiveIdx); return; }
+  if (e.key === 'Tab' && _atActiveIdx >= 0) { e.preventDefault(); selectAtFile(_atActiveIdx); return; }
 });
 
 // Keyboard navigation inside slash popup
@@ -5939,7 +5949,8 @@ inEl.addEventListener('keydown', e => {
   if (e.key === 'Escape') { _closeSshPopup(); e.preventDefault(); return; }
   if (e.key === 'ArrowDown') { e.preventDefault(); _sshActiveIdx = Math.min(_sshActiveIdx + 1, _sshHosts.length - 1); _renderSshList($i('sshSearch').value); $i('sshList').querySelector('.active')?.scrollIntoView({ block: 'nearest' }); return; }
   if (e.key === 'ArrowUp') { e.preventDefault(); _sshActiveIdx = Math.max(_sshActiveIdx - 1, -1); _renderSshList($i('sshSearch').value); return; }
-  if ((e.key === 'Enter' || e.key === 'Tab') && _sshActiveIdx >= 0) { e.preventDefault(); selectSshHost(_sshActiveIdx); return; }
+  if (e.key === 'Enter') { e.preventDefault(); if (_sshActiveIdx >= 0) selectSshHost(_sshActiveIdx); return; }
+  if (e.key === 'Tab' && _sshActiveIdx >= 0) { e.preventDefault(); selectSshHost(_sshActiveIdx); return; }
 });
 
 // Close popups on click outside
@@ -6004,8 +6015,10 @@ async function send() {
     if (att.type === 'image') {
       msgAttachments.push({ type: att.mimeType, base64: att.base64, name: att.name });
     } else if (att.type === 'ssh') {
-      // SSH chip: append metadata as context text, never include credentials
+      // SSH chip: append metadata as context text (display only, no credentials)
       sshContextParts.push(`[SSH: ${att.label} | host: ${att.host}:${att.port}]`);
+      // Also pass SSH attachment to server so it can enrich with stored credentials (key path / password)
+      msgAttachments.push({ type: 'ssh', hostId: att.hostId, label: att.label, host: att.host, port: att.port });
     } else if (att.type === 'file') {
       if (att.local && att.base64) {
         // Local file picked via file dialog — content already read client-side

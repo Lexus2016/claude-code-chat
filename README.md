@@ -234,7 +234,7 @@ If Claude hits the turn limit mid-task, it **auto-continues up to 3 times** — 
 
 Add a remote server, create a project pointing to a directory on it, and Claude works there — as if local. Useful for GPU machines, staging environments, or managing a server fleet without SSH sessions.
 
-**Quick attach with `#`** — type `#` in the chat input and a popup shows your configured SSH servers. Pick one, it attaches as a chip, and Claude knows to run commands on that machine. No context switching, no sidebar clicking — just `#` and go.
+**Quick attach with `#`** — type `#` in the chat input and a popup shows your configured SSH servers. Pick one (or several — the popup stays open for multi-select), it attaches as a chip, and Claude receives full connection details including stored credentials. No context switching, no sidebar clicking — just `#` and go.
 
 ### 🔗 Remote Access — Open Your Studio to the World
 
@@ -378,7 +378,7 @@ After setup, Claude Code CLI will use your OpenRouter API key and the model you 
 | 🧠 Skills & auto-skills | 28 specialist personas; auto-classified per message with ⚡ Auto |
 | ⚙️ Model & turns | Haiku / Sonnet / Opus; adjustable turn budget (1–200) with auto-continue |
 | 🔀 Auto mode switch | Claude can switch modes mid-task (e.g., planning → execution) |
-| 📁 File browser | Browse, preview, and attach files with `@filename` |
+| 📁 File browser | Browse, preview, and attach files with `@filename` — multi-select: popup stays open for picking several files |
 | 🖼 Vision | Paste screenshots — Claude sees and analyzes them |
 | 🗂 Projects | Separate workspaces with their own file directories |
 | 🌐 Remote SSH | Work on remote servers as if local — type `#` in chat to quickly attach any SSH host |

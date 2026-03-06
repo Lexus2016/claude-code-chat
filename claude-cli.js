@@ -157,27 +157,36 @@ class ClaudeCLI {
     args.push('--include-partial-messages');
 
     // Handle image/file attachments: save to temp dir, append file paths to prompt
-    // so Claude CLI can read them via its Read tool (CLI has no native content block API)
+    // so Claude CLI can read them via its Read tool (CLI has no native content block API).
+    // Text blocks (SSH info, file content) are prepended directly to the prompt string.
     const _tempFiles = [];
     let _tempDir = null;
     let finalPrompt = prompt;
     if (contentBlocks && contentBlocks.length) {
-      _tempDir = path.join(os.tmpdir(), `claude-att-${Date.now()}`);
-      fs.mkdirSync(_tempDir, { recursive: true });
       const filePaths = [];
+      const textParts = [];
       for (const block of contentBlocks) {
         if (block.type === 'image' && block.source?.data) {
+          if (!_tempDir) {
+            _tempDir = path.join(os.tmpdir(), `claude-att-${Date.now()}`);
+            fs.mkdirSync(_tempDir, { recursive: true });
+          }
           const ext = (block.source.media_type || 'image/png').split('/')[1] || 'png';
           const fname = `attachment-${_tempFiles.length + 1}.${ext}`;
           const fpath = path.join(_tempDir, fname);
           fs.writeFileSync(fpath, Buffer.from(block.source.data, 'base64'));
           _tempFiles.push(fpath);
           filePaths.push(fpath);
+        } else if (block.type === 'text' && block.text && block.text !== prompt) {
+          // Collect SSH context, file contents, and other text blocks that are NOT
+          // the user message itself (buildUserContent appends the message as last block)
+          textParts.push(block.text);
         }
       }
-      if (filePaths.length) {
-        finalPrompt = `[Attached images — read these files to see the screenshots/images the user shared:\n${filePaths.map(f => `- ${f}`).join('\n')}\n]\n\n${prompt}`;
-      }
+      const prefixParts = [];
+      if (textParts.length) prefixParts.push(textParts.join('\n\n'));
+      if (filePaths.length) prefixParts.push(`[Attached images — read these files to see the screenshots/images the user shared:\n${filePaths.map(f => `- ${f}`).join('\n')}\n]`);
+      if (prefixParts.length) finalPrompt = prefixParts.join('\n\n') + '\n\n' + prompt;
     }
     args.push('-p', finalPrompt);
 
@@ -202,7 +211,7 @@ class ClaudeCLI {
     // Close stdin immediately (non-interactive)
     proc.stdin.end();
 
-    const h = { onText: null, onTool: null, onDone: null, onError: null, onSessionId: null, onThinking: null, onRateLimit: null, onResult: null, _deltaBlocks: new Set() };
+    const h = { onText: null, onTool: null, onDone: null, onError: null, onSessionId: null, onThinking: null, onRateLimit: null, onResult: null, _deltaBlocks: new Set(), _detectedSid: sessionId || null };
     const stdoutDecoder = new StringDecoder('utf8');
     const stderrDecoder = new StringDecoder('utf8');
     let buffer = '', stderrBuf = '', detectedSid = sessionId || null;
@@ -245,6 +254,7 @@ class ClaudeCLI {
         const sm = line.match(/session[_\s]*id[:\s]*([a-f0-9-]+)/i);
         if (sm && !detectedSid) {
           detectedSid = sm[1];
+          h._detectedSid = detectedSid;
           if (h.onSessionId) h.onSessionId(detectedSid);
         }
       }
@@ -260,6 +270,7 @@ class ClaudeCLI {
         || str.match(/Resuming session\s+([a-f0-9-]+)/i);
       if (sm && !detectedSid) {
         detectedSid = sm[1];
+        h._detectedSid = detectedSid;
         if (h.onSessionId) h.onSessionId(detectedSid);
       }
     });
@@ -295,7 +306,7 @@ class ClaudeCLI {
           try { h.onError(realErrors.substring(0, 1000)); } catch {}
         }
       }
-      if (h.onDone) h.onDone(detectedSid);
+      if (h.onDone) h.onDone(detectedSid || h._detectedSid);
     });
 
     proc.on('error', (err) => {
@@ -314,7 +325,7 @@ class ClaudeCLI {
       attFiles = [];
       // Wrapped in try-catch for the same reason as in 'close': onDone must always fire.
       try { if (h.onError) h.onError(`Failed to start claude: ${err.message}. Binary: ${this.claudeBin}`); } catch {}
-      if (h.onDone) h.onDone(detectedSid);
+      if (h.onDone) h.onDone(detectedSid || h._detectedSid);
     });
 
     // Global timeout — must be set after all declarations to avoid TDZ with let
@@ -420,7 +431,7 @@ class ClaudeCLI {
       h.onResult(data);
     }
     // Session ID in result messages
-    if (data.session_id && !detectedSid && h.onSessionId) { detectedSid = data.session_id; h.onSessionId(data.session_id); }
+    if (data.session_id && !h._detectedSid && h.onSessionId) { h._detectedSid = data.session_id; h.onSessionId(data.session_id); }
   }
 }
 
