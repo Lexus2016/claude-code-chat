@@ -2889,7 +2889,7 @@ app.get('/api/bmad/sprint-status', (req, res) => {
 });
 
 // POST /api/bmad/sprint-sync — sync sprint stories → Kanban cards
-app.post('/api/bmad/sprint-sync', (req, res) => {
+app.post('/api/bmad/sprint-sync', express.json(), (req, res) => {
   const workdir = req.body.workdir || WORKDIR;
   const filter = req.body.filter || 'all'; // 'all' | 'active' | 'backlog'
   const filePath = findSprintStatusFile(workdir);
@@ -2946,12 +2946,13 @@ app.post('/api/bmad/sprint-sync', (req, res) => {
   }
 
   // Broadcast refresh
-  broadcast({ type: 'tasks-changed' });
+  // Notify connected clients
+  wss.clients.forEach(ws => { try { ws.send(JSON.stringify({ type: 'tasks-changed' })); } catch {} });
   res.json({ synced: true, created: created.length, updated: updated.length, skipped: skipped.length, details: { created, updated, skipped } });
 });
 
 // POST /api/bmad/sprint-status/update — update a story status back to sprint-status.yaml
-app.post('/api/bmad/sprint-status/update', (req, res) => {
+app.post('/api/bmad/sprint-status/update', express.json(), (req, res) => {
   const { workdir, storyId, newStatus } = req.body;
   const dir = workdir || WORKDIR;
   const filePath = findSprintStatusFile(dir);
