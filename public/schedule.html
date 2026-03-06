@@ -365,6 +365,7 @@ button{font-family:inherit;cursor:pointer}
     <span id="lblStatRecurring">повторюваних</span>
   </div>
   <span class="status-dot ok" id="schStatusEl">Connected</span>
+  <button id="sprintSchedBtn" onclick="showSprintSchedule()" style="background:var(--accent2);color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:none;margin-left:auto" title="Import BMAD sprint stories as scheduled tasks">⚡ Sprint Tasks</button>
 </div>
 
 <!-- Agenda -->
@@ -1281,6 +1282,81 @@ function applyStaticI18n() {
     tc.onmessage = e => { if (e.data?.type === 'task_deleted' || e.data?.type === 'task_changed') refresh(); };
   } catch {}
 })();
+
+// ─── BMAD Sprint → Schedule Integration ───────────────────────────────────
+async function checkSprintForSchedule() {
+  const workdir = curProject?.workdir;
+  if (!workdir) { $i('sprintSchedBtn').style.display='none'; return; }
+  try {
+    const r = await apiFetch(`/api/bmad/sprint-status?workdir=${encodeURIComponent(workdir)}`);
+    const d = await r.json();
+    $i('sprintSchedBtn').style.display = d.found ? '' : 'none';
+    window._sprintSchedData = d.found ? d : null;
+  } catch { $i('sprintSchedBtn').style.display='none'; }
+}
+
+// Hook into project load
+const _origLoadProjects = loadProjects;
+loadProjects = async function() {
+  await _origLoadProjects();
+  checkSprintForSchedule();
+};
+
+function showSprintSchedule() {
+  const d = window._sprintSchedData;
+  if (!d) return toast('No sprint data', true);
+
+  // Show active stories that could be scheduled
+  const activeStories = [];
+  for (const epic of d.epics) {
+    for (const story of epic.stories) {
+      if (story.status !== 'done') {
+        activeStories.push({ ...story, epicId: epic.id, epicTitle: epic.title });
+      }
+    }
+  }
+
+  const statusColors = {
+    'backlog':'#888','ready-for-dev':'#4a9eff','in-progress':'#e8a020',
+    'review':'#e8a838','needs-revision':'#e85050','done':'#4ade80'
+  };
+
+  let html = `<div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:flex;align-items:center;justify-content:center" id="sprintSchedOv" onclick="if(event.target===this)this.remove()">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;width:95%;max-width:700px;max-height:85vh;display:flex;flex-direction:column;box-shadow:var(--shadow-xl)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:15px">⚡ Sprint Stories → Scheduled Tasks</strong>
+      <button onclick="$i('sprintSchedOv').remove()" style="background:var(--s2);color:var(--fg);border:1px solid var(--border);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;flex:1">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${activeStories.length} active stories. Click a story to schedule it as a task.</div>`;
+
+  for (const s of activeStories) {
+    const sc = statusColors[s.status] || '#888';
+    html += `<div onclick="scheduleSprintStory('${escH(s.id)}','${escH(s.epicTitle)}','${escH(s.title)}')" 
+      style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12px;border:1px solid var(--border);margin-bottom:4px;transition:.12s"
+      onmouseover="this.style.borderColor='var(--accent2)'" onmouseout="this.style.borderColor='var(--border)'">
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${sc};flex-shrink:0"></span>
+      <span style="color:var(--muted);width:60px;flex-shrink:0">${escH(s.epicId)}</span>
+      <span style="flex:1;color:var(--fg)">${escH(s.title)}</span>
+      <span style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${sc}20;color:${sc}">${s.status}</span>
+    </div>`;
+  }
+
+  html += `</div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function scheduleSprintStory(storyId, epicTitle, storyTitle) {
+  $i('sprintSchedOv')?.remove();
+  // Open the new task modal with pre-filled data
+  openNewModal();
+  setTimeout(() => {
+    const titleEl = $i('fTitle');
+    const descEl = $i('fDesc');
+    if (titleEl) titleEl.value = `[BMAD] ${epicTitle}: ${storyTitle}`;
+    if (descEl) descEl.value = `BMAD Story: ${storyId}\n\nImplement this story following the acceptance criteria. Check the story file for detailed requirements.\n\n[bmad:${storyId}]`;
+  }, 100);
+}
 </script>
 </body>
 </html>

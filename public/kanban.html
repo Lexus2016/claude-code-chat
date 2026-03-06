@@ -361,6 +361,7 @@ textarea.inp{ resize:vertical; min-height:80px; }
   </div>
   <span class="refresh-ts" id="refreshTs2"></span>
   <span style="flex:1"></span>
+  <button id="sprintSyncBtn" onclick="showSprintSync()" style="background:var(--accent2);color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:none" title="Sync BMAD sprint-status.yaml tasks to Kanban">⚡ Sprint Sync</button>
   <span class="status-dot ok" id="kbStatusEl">Connected</span>
 </div>
 
@@ -1259,6 +1260,105 @@ document.addEventListener('keydown',e=>{
     tc.onmessage=e=>{if(e.data?.type==='task_deleted'||e.data?.type==='task_changed')refresh(true);};
   }catch{}
 })();
+
+// ─── BMAD Sprint Sync ─────────────────────────────────────────────────────
+async function checkSprintStatus() {
+  if (!curWorkdir) { $i('sprintSyncBtn').style.display='none'; return; }
+  try {
+    const r = await apiFetch(`/api/bmad/sprint-status?workdir=${encodeURIComponent(curWorkdir)}`);
+    const d = await r.json();
+    $i('sprintSyncBtn').style.display = d.found ? '' : 'none';
+    window._sprintData = d.found ? d : null;
+  } catch { $i('sprintSyncBtn').style.display='none'; }
+}
+
+// Check sprint status when project changes
+const _origRefresh = refresh;
+refresh = async function(force) {
+  await _origRefresh(force);
+  checkSprintStatus();
+};
+
+function showSprintSync() {
+  const d = window._sprintData;
+  if (!d) return toast('No sprint data found', true);
+
+  // Build modal content
+  let html = `<div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:flex;align-items:center;justify-content:center" id="sprintOv" onclick="if(event.target===this)this.remove()">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;width:95%;max-width:750px;max-height:85vh;display:flex;flex-direction:column;box-shadow:var(--shadow-xl)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <strong style="font-size:15px">⚡ Sprint Sync — ${escH(d.meta.project)}</strong>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Generated: ${escH(String(d.meta.generated))} · ${d.epics.length} epics</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <select id="sprintFilter" style="background:var(--s2);border:1px solid var(--border);color:var(--fg);padding:3px 8px;border-radius:6px;font-size:12px">
+          <option value="all">All stories</option>
+          <option value="active" selected>Active only</option>
+          <option value="backlog">Backlog only</option>
+        </select>
+        <button onclick="doSprintSync()" style="background:var(--accent2);color:#fff;border:none;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">Sync to Kanban</button>
+        <button onclick="$i('sprintOv').remove()" style="background:var(--s2);color:var(--fg);border:1px solid var(--border);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+      </div>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;flex:1">`;
+
+  const statusColors = {
+    'backlog':'var(--muted)','ready-for-dev':'var(--blue)','in-progress':'var(--orange)',
+    'review':'#e8a838','needs-revision':'var(--red)','done':'var(--green)','optional':'var(--muted)'
+  };
+
+  for (const epic of d.epics) {
+    const epicColor = statusColors[epic.status] || 'var(--muted)';
+    const doneCount = epic.stories.filter(s=>s.status==='done').length;
+    html += `<div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${epicColor}"></span>
+        <strong style="font-size:13px">${escH(epic.id)}: ${escH(epic.title)}</strong>
+        <span style="font-size:11px;color:var(--muted)">${epic.status} · ${doneCount}/${epic.stories.length} stories done</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px">`;
+
+    for (const story of epic.stories) {
+      const sc = statusColors[story.status] || 'var(--muted)';
+      const notesSnip = story.notes ? ` — <span style="color:var(--muted)">${escH(story.notes.substring(0,80))}${story.notes.length>80?'…':''}</span>` : '';
+      html += `<div style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 0">
+        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${sc};flex-shrink:0"></span>
+        <span style="color:var(--fg)">${escH(story.id)}</span>
+        <span style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${sc}20;color:${sc}">${story.status}</span>
+        <span style="flex:1;color:var(--fg2)">${escH(story.title)}${notesSnip}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  html += `<div id="sprintSyncResult" style="margin-top:12px"></div>`;
+  html += `</div></div></div>`;
+
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function doSprintSync() {
+  const filter = $i('sprintFilter')?.value || 'active';
+  const resultEl = $i('sprintSyncResult');
+  resultEl.innerHTML = '<span style="color:var(--accent2)">Syncing…</span>';
+  try {
+    const r = await apiFetch('/api/bmad/sprint-sync', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workdir: curWorkdir, filter })
+    });
+    const d = await r.json();
+    if (d.error) { resultEl.innerHTML = `<span style="color:var(--red)">Error: ${escH(d.error)}</span>`; return; }
+    resultEl.innerHTML = `<div style="padding:8px 12px;background:var(--s2);border-radius:8px;font-size:12px">
+      <strong style="color:var(--green)">✓ Synced!</strong>
+      <span style="color:var(--fg2)">Created: ${d.created} · Updated: ${d.updated} · Skipped: ${d.skipped}</span>
+    </div>`;
+    refresh(true);
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:var(--red)">Error: ${escH(e.message)}</span>`;
+  }
+}
 </script>
 </body>
 </html>

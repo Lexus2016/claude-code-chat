@@ -8186,16 +8186,8 @@ async function browseDirs(dirPath) {
       const icon = isDrivesList ? '💾' : '▸';
       const iconStyle = isDrivesList ? '' : 'color:var(--muted)';
       el.innerHTML = `<span class="di" style="${iconStyle}">${icon}</span><span class="dn">${escH(it.name)}</span>`;
-      el.onclick = () => {
-        if (el._t) { clearTimeout(el._t); el._t = null; browseDirs(it.path); }
-        else { el._t = setTimeout(() => {
-          el._t = null;
-          dirBrowsePath = it.path;
-          $i('dirCurrentPath').textContent = it.path;
-          if (!isDrivesList) $i('projNameInput').value = it.name;
-          highlightSelected(el);
-        }, 220); }
-      };
+      // Single click navigates into the folder; the "▸ Use this directory" row above serves as the select action
+      el.onclick = () => { browseDirs(it.path); };
       list.appendChild(el);
     }
 

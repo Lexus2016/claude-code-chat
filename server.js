@@ -3,6 +3,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const fs = require('fs');
+const yaml = require('js-yaml');
 const os = require('os');
 const url = require('url');
 const { execSync, spawn: spawnProc } = require('child_process');
@@ -2562,6 +2563,29 @@ app.patch('/api/tasks/:id', express.json(), (req, res) => {
     req.params.id
   );
   if (merged.status === 'todo') setImmediate(processQueue);
+  // ── BMAD reverse sync: update sprint-status.yaml when Kanban status changes ──
+  if (updates.status && merged.notes) {
+    const bmadMatch = (merged.notes || '').match(/\[bmad:([^\]]+)\]/);
+    if (bmadMatch) {
+      const REVERSE_MAP = { 'backlog':'backlog','todo':'ready-for-dev','in_progress':'in-progress','done':'done','cancelled':'backlog' };
+      const bmadStatus = REVERSE_MAP[merged.status];
+      if (bmadStatus) {
+        const wd = merged.workdir || WORKDIR;
+        const spFile = findSprintStatusFile(wd);
+        if (spFile) {
+          try {
+            let content = fs.readFileSync(spFile, 'utf-8');
+            const re = new RegExp(`(\\s+${bmadMatch[1].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}:\\s*)\\S+`, 'm');
+            if (re.test(content)) {
+              content = content.replace(re, `$1${bmadStatus}`);
+              fs.writeFileSync(spFile, content, 'utf-8');
+              log.info('BMAD reverse sync', { story: bmadMatch[1], status: bmadStatus });
+            }
+          } catch (e) { log.warn('BMAD reverse sync failed', { error: e.message }); }
+        }
+      }
+    }
+  }
   res.json(stmts.getTask.get(req.params.id));
 });
 
@@ -2735,6 +2759,185 @@ app.get('/api/bmad/templates', (req, res) => {
     return { name, filename, available: exists };
   });
   res.json(templates);
+});
+
+// ─── BMAD Sprint Status Integration ───────────────────────────────────────────
+// Finds and parses sprint-status.yaml from a project's _bmad-output directory.
+// Maps BMAD statuses → Kanban statuses and syncs tasks bidirectionally.
+
+const BMAD_STATUS_MAP = {
+  'backlog':       'backlog',
+  'ready-for-dev': 'todo',
+  'in-progress':   'in_progress',
+  'review':        'in_progress',
+  'needs-revision':'in_progress',
+  'done':          'done',
+  'optional':      'backlog',
+};
+
+function findSprintStatusFile(workdir) {
+  if (!workdir) return null;
+  // Common locations for sprint-status.yaml
+  const candidates = [
+    path.join(workdir, '_bmad-output', 'implementation-artifacts', 'sprint-status.yaml'),
+    path.join(workdir, '_bmad-output', 'sprint-status.yaml'),
+    path.join(workdir, 'sprint-status.yaml'),
+    path.join(workdir, '_bmad', 'sprint-status.yaml'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+function parseSprintStatus(filePath) {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const doc = yaml.load(raw);
+    if (!doc || !doc.development_status) return null;
+
+    const meta = {
+      project: doc.project || '',
+      project_key: doc.project_key || '',
+      generated: doc.generated || '',
+      story_location: doc.story_location || '',
+    };
+
+    // Parse development_status into structured epics and stories
+    const epics = [];
+    let currentEpic = null;
+
+    // Read the raw file for comments (epic titles)
+    const lines = raw.split('\n');
+    const epicComments = {};
+    for (const line of lines) {
+      const cm = line.match(/^\s*#\s*Epic\s+(\d+):\s*(.+)/i);
+      if (cm) epicComments[`epic-${cm[1]}`] = cm[2].trim();
+    }
+
+    for (const [key, status] of Object.entries(doc.development_status)) {
+      const statusStr = String(status).split('#')[0].trim(); // strip inline comments
+      if (key.match(/^epic-\d+$/)) {
+        currentEpic = {
+          id: key,
+          title: epicComments[key] || key,
+          status: statusStr,
+          kanbanStatus: BMAD_STATUS_MAP[statusStr] || 'backlog',
+          stories: [],
+        };
+        epics.push(currentEpic);
+      } else if (key.match(/^epic-\d+-retrospective$/)) {
+        if (currentEpic) currentEpic.retrospective = statusStr;
+      } else if (currentEpic && !key.startsWith('epic-')) {
+        // It's a story
+        const storyComment = raw.split('\n').find(l => l.includes(key + ':'));
+        const inlineComment = storyComment ? (storyComment.split('#').slice(1).join('#').trim() || '') : '';
+        currentEpic.stories.push({
+          id: key,
+          title: key.replace(/^\d+-\d+-/, '').replace(/-/g, ' '),
+          status: statusStr,
+          kanbanStatus: BMAD_STATUS_MAP[statusStr] || 'backlog',
+          notes: inlineComment,
+        });
+      }
+    }
+
+    return { meta, epics, filePath };
+  } catch (e) {
+    log.error('Failed to parse sprint-status.yaml', { error: e.message, filePath });
+    return null;
+  }
+}
+
+// GET /api/bmad/sprint-status?workdir=... — parse and return sprint status
+app.get('/api/bmad/sprint-status', (req, res) => {
+  const workdir = req.query.workdir || WORKDIR;
+  const filePath = findSprintStatusFile(workdir);
+  if (!filePath) return res.json({ found: false, workdir });
+  const parsed = parseSprintStatus(filePath);
+  if (!parsed) return res.status(500).json({ error: 'Failed to parse sprint-status.yaml' });
+  res.json({ found: true, ...parsed });
+});
+
+// POST /api/bmad/sprint-sync — sync sprint stories → Kanban cards
+app.post('/api/bmad/sprint-sync', (req, res) => {
+  const workdir = req.body.workdir || WORKDIR;
+  const filter = req.body.filter || 'all'; // 'all' | 'active' | 'backlog'
+  const filePath = findSprintStatusFile(workdir);
+  if (!filePath) return res.status(404).json({ error: 'No sprint-status.yaml found', workdir });
+  const parsed = parseSprintStatus(filePath);
+  if (!parsed) return res.status(500).json({ error: 'Failed to parse sprint-status.yaml' });
+
+  // Get existing tasks tagged with bmad_sprint source
+  const existingTasks = db.prepare(`SELECT * FROM tasks WHERE workdir=?`).all(workdir);
+  const existingByBmadId = {};
+  for (const t of existingTasks) {
+    // Check notes for [bmad:story-id] tag
+    const m = (t.notes || '').match(/\[bmad:([^\]]+)\]/);
+    if (m) existingByBmadId[m[1]] = t;
+  }
+
+  const created = [], updated = [], skipped = [];
+
+  for (const epic of parsed.epics) {
+    for (const story of epic.stories) {
+      // Apply filter
+      if (filter === 'active' && (story.status === 'backlog' || story.status === 'done')) continue;
+      if (filter === 'backlog' && story.status !== 'backlog') continue;
+
+      const bmadTag = `[bmad:${story.id}]`;
+      const existing = existingByBmadId[story.id];
+
+      if (existing) {
+        // Update status if BMAD status changed
+        if (existing.status !== story.kanbanStatus) {
+          stmts.patchTaskStatus.run(story.kanbanStatus, existing.sort_order, existing.id);
+          updated.push({ id: story.id, from: existing.status, to: story.kanbanStatus });
+        } else {
+          skipped.push(story.id);
+        }
+      } else {
+        // Create new Kanban card
+        const id = crypto.randomUUID();
+        const title = `[${epic.id}] ${story.title}`;
+        const description = story.notes
+          ? `BMAD Story: ${story.id}\nEpic: ${epic.title}\n\n${story.notes}\n\nImplement this story following the acceptance criteria in the story file.`
+          : `BMAD Story: ${story.id}\nEpic: ${epic.title}\n\nImplement this story following the acceptance criteria in the story file.`;
+        const notes = `${bmadTag} Sprint: ${parsed.meta.project}`;
+        const sortOrder = epic.stories.indexOf(story);
+
+        stmts.createTask.run(
+          id, title, description, notes,
+          story.kanbanStatus, sortOrder, null, workdir,
+          null, null, null, null, null, null, null, null, null, null, null
+        );
+        created.push({ id: story.id, kanbanId: id, status: story.kanbanStatus });
+      }
+    }
+  }
+
+  // Broadcast refresh
+  broadcast({ type: 'tasks-changed' });
+  res.json({ synced: true, created: created.length, updated: updated.length, skipped: skipped.length, details: { created, updated, skipped } });
+});
+
+// POST /api/bmad/sprint-status/update — update a story status back to sprint-status.yaml
+app.post('/api/bmad/sprint-status/update', (req, res) => {
+  const { workdir, storyId, newStatus } = req.body;
+  const dir = workdir || WORKDIR;
+  const filePath = findSprintStatusFile(dir);
+  if (!filePath) return res.status(404).json({ error: 'No sprint-status.yaml found' });
+  try {
+    let content = fs.readFileSync(filePath, 'utf-8');
+    // Find the line with the story ID and update its status
+    const regex = new RegExp(`(\\s+${storyId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*)\\S+`, 'm');
+    if (!regex.test(content)) return res.status(404).json({ error: `Story ${storyId} not found in sprint-status.yaml` });
+    content = content.replace(regex, `$1${newStatus}`);
+    fs.writeFileSync(filePath, content, 'utf-8');
+    res.json({ updated: true, storyId, newStatus });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Sessions
