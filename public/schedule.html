@@ -556,6 +556,51 @@ function recurLabel(r) { return t('recur.' + r) || r; }
 // ─── State ────────────────────────────────────────────────────────────────
 let tasks = [], sessions = [], curWorkdir = null, editingId = null;
 let projects = [];
+
+// ─── Task 9: Pre-built BMAD scheduled task templates ──────────────────────
+// Task 10: Each template includes bmad-skills annotation for skill injection
+const BMAD_SCHED_TEMPLATES = [
+  {
+    id: 'nightly-tests',
+    icon: '🧪',
+    label: 'Nightly Test Suite',
+    title: 'Nightly Test Suite',
+    description: '<!-- bmad-skills: ["qa-engineer"] -->\nRun the full test suite and report results. Execute: 1) all unit tests, 2) integration tests, 3) report any failures with file:line references, 4) suggest fixes for failing tests.',
+    recurrence: 'daily',
+    hour: 2, // 2am
+    skills: ['qa-engineer'],
+  },
+  {
+    id: 'weekly-audit',
+    icon: '🔒',
+    label: 'Weekly Dependency Audit',
+    title: 'Weekly Dependency Audit',
+    description: '<!-- bmad-skills: ["security","devops"] -->\nAudit project dependencies for security vulnerabilities. Run: 1) npm audit or equivalent, 2) check for outdated packages, 3) identify CVEs, 4) produce a prioritized security report with remediation steps.',
+    recurrence: 'weekly',
+    hour: 3, // 3am
+    skills: ['security', 'devops'],
+  },
+  {
+    id: 'weekly-review',
+    icon: '👁️',
+    label: 'Weekly Code Review',
+    title: 'Weekly Code Review',
+    description: '<!-- bmad-skills: ["code-review","analyst"] -->\nPerform a comprehensive code review of recent changes. Analyze: 1) git log --since="7 days ago", 2) check code quality, 3) identify potential bugs or tech debt, 4) produce a structured report with severity levels (critical/warning/suggestion).',
+    recurrence: 'weekly',
+    hour: 9, // 9am
+    skills: ['code-review', 'analyst'],
+  },
+  {
+    id: 'daily-standup',
+    icon: '📊',
+    label: 'Daily Git Standup',
+    title: 'Daily Git Standup',
+    description: '<!-- bmad-skills: ["developer"] -->\nGenerate a daily standup report from git activity. Include: 1) commits in last 24h (git log --since="24 hours ago"), 2) files changed, 3) brief summary of what was accomplished, 4) any pending work in progress.',
+    recurrence: 'daily',
+    hour: 8, // 8am
+    skills: ['developer'],
+  },
+];
 const RECUR_NEXT = { hourly: 3600, daily: 86400, weekly: 604800, monthly: 2592000 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -953,6 +998,34 @@ async function runNow(id) {
 }
 
 // ─── Modal / Form ─────────────────────────────────────────────────────────
+// Task 9: Apply BMAD template to the form
+function applyBmadTemplate(id) {
+  const tpl = BMAD_SCHED_TEMPLATES.find(t => t.id === id);
+  if (!tpl) return;
+  const titleEl = $i('fTitle');
+  const descEl = $i('fDesc');
+  const recurEl = $i('fRecurrence');
+  const schedEl = $i('fScheduledAt');
+  if (titleEl) titleEl.value = tpl.title;
+  if (descEl) descEl.value = tpl.description;
+  if (recurEl) { recurEl.value = tpl.recurrence || ''; onRecurChange(); }
+  if (schedEl && tpl.hour !== undefined) {
+    // Set next occurrence at specified hour
+    const now = new Date();
+    const next = new Date(now);
+    next.setDate(next.getDate() + (now.getHours() >= tpl.hour ? 1 : 0));
+    next.setHours(tpl.hour, 0, 0, 0);
+    const p = n => String(n).padStart(2, '0');
+    schedEl.value = `${next.getFullYear()}-${p(next.getMonth()+1)}-${p(next.getDate())}T${p(next.getHours())}:00`;
+  }
+  // Show skill badges
+  const skillsEl = $i('bmadSkillsBadge');
+  if (skillsEl && tpl.skills?.length) {
+    skillsEl.textContent = '🧙 Skills: ' + tpl.skills.join(', ');
+    skillsEl.style.display = 'inline-block';
+  }
+}
+
 function buildForm(tk={}) {
   const sessOpts = `<option value="">${t('form.no_session')}</option>` +
     sessions.map(s => `<option value="${s.id}"${tk.session_id===s.id?' selected':''}>${escH((s.title||s.id).substring(0,50))}</option>`).join('');
@@ -960,7 +1033,24 @@ function buildForm(tk={}) {
   const dtVal = tk.scheduled_at ? toLocalDatetimeStr(tk.scheduled_at) : '';
   const endDtVal = tk.recurrence_end_at ? toLocalDateStr(tk.recurrence_end_at) : '';
 
+  // Task 9: BMAD template picker (only shown for new tasks)
+  const bmadTplHtml = !tk.id ? `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🧙 BMAD Templates</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${BMAD_SCHED_TEMPLATES.map(tpl => `
+          <button type="button" onclick="applyBmadTemplate('${tpl.id}')"
+            style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--s3);color:var(--muted);cursor:pointer;font-size:12px;font-family:inherit;transition:.12s"
+            onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent2)'"
+            onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
+            ${tpl.icon} ${escH(tpl.label)}
+          </button>`).join('')}
+      </div>
+      <div id="bmadSkillsBadge" style="display:none;margin-top:6px;font-size:11px;color:var(--accent2);background:var(--abg);border:1px solid rgba(124,106,239,.3);padding:3px 8px;border-radius:5px;display:inline-block"></div>
+    </div>` : '';
+
   return `
+    ${bmadTplHtml}
     <div>
       <label class="lbl">${t('form.title')}</label>
       <input id="fTitle" class="inp" placeholder="${t('form.title.ph')}" value="${escH(tk.title||'')}" maxlength="200">

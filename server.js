@@ -616,6 +616,22 @@ async function startTask(task) {
     } else {
       broadcastToSession(sessionId, { type: 'task_started', taskId: task.id, title: task.title, prompt, tabId: sessionId });
     }
+    // Task 10: Inject BMAD agent skill context for scheduled tasks.
+    // If the task description contains a <!-- bmad-skills: [...] --> annotation,
+    // extract the skill IDs and build + inject a system prompt.
+    let taskSystemPrompt = null;
+    const _skillAnnotation = (task.description || '').match(/<!--\s*bmad-skills:\s*(\[[\s\S]*?\])\s*-->/);
+    if (_skillAnnotation) {
+      try {
+        const _skillIds = JSON.parse(_skillAnnotation[1]);
+        if (Array.isArray(_skillIds) && _skillIds.length) {
+          const _skillConfig = loadMergedConfig();
+          taskSystemPrompt = buildSystemPrompt(_skillIds, _skillConfig);
+          log.info(`[taskWorker] injecting BMAD skills for task "${task.title}": ${_skillIds.join(', ')}`);
+        }
+      } catch (e) { log.warn('[taskWorker] bmad-skills parse error', { error: e.message }); }
+    }
+
     // Auto-continue loop: keep resuming until agent completes or budget exhausted
     let taskContinueCount = 0;
     let currentTaskPrompt = prompt;
@@ -626,7 +642,9 @@ async function startTask(task) {
     while (true) {
       lastTaskResult = null;
       hasError = false; // Reset per iteration — only the LAST iteration's error state matters for final status
-      const stream = cli.send({ prompt: currentTaskPrompt, sessionId: currentTaskCid, model: session?.model || task.model || 'sonnet', maxTurns: effectiveTaskMaxTurns, abortController: taskAbort });
+      const _sendOpts = { prompt: currentTaskPrompt, sessionId: currentTaskCid, model: session?.model || task.model || 'sonnet', maxTurns: effectiveTaskMaxTurns, abortController: taskAbort };
+      if (taskSystemPrompt) _sendOpts.systemPrompt = taskSystemPrompt;
+      const stream = cli.send(_sendOpts);
       // Save subprocess PID so startup recovery can kill orphans on restart
       if (stream.process?.pid) {
         db.prepare(`UPDATE tasks SET worker_pid=? WHERE id=?`).run(stream.process.pid, task.id);
@@ -1840,6 +1858,139 @@ async function runSshSingle(p) {
   return { cid: newCid, completed: lastResult?.subtype === 'success' };
 }
 
+// ── Task 12: Party Mode — BMAD multi-persona discussion + execution ──────────
+// Party mode: before execution, each relevant BMAD agent briefly discusses the
+// task from their perspective, then a synthesis creates the execution plan.
+async function runPartyMode(p) {
+  const { prompt, systemPrompt, mcpServers, model, maxTurns, ws, sessionId, abortController, claudeSessionId, workdir, tabId } = p;
+  const effectiveWorkdir = workdir || WORKDIR;
+  const cli = new ClaudeCLI({ cwd: effectiveWorkdir });
+
+  // ── Step 1: Identify relevant BMAD agents ───────────────────────────────
+  const PARTY_AGENTS = [
+    { id: 'analyst',         emoji: '📊', name: 'Mary (Analyst)'         },
+    { id: 'architect',       emoji: '🏗️',  name: 'Winston (Architect)'    },
+    { id: 'developer',       emoji: '💻', name: 'Amelia (Developer)'     },
+    { id: 'qa-engineer',     emoji: '🧪', name: 'Quinn (QA)'             },
+    { id: 'product-manager', emoji: '📋', name: 'John (PM)'              },
+  ];
+  ws.send(JSON.stringify({ type:'agent_status', agent:'party-host', status:'🎉 Party Mode — BMAD agents discussing...', ...(tabId ? { tabId } : {}) }));
+  ws.send(JSON.stringify({ type:'party_start', agents: PARTY_AGENTS.map(a => ({ id: a.id, name: a.name, emoji: a.emoji })), ...(tabId ? { tabId } : {}) }));
+
+  const headerText = `\n## 🎉 Party Mode — BMAD Agent Discussion\n\n`;
+  const _addBuf = (t) => { const _cb = (chatBuffers.get(sessionId) || '') + t; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); };
+  _addBuf(headerText);
+  ws.send(JSON.stringify({ type:'text', text: headerText, ...(tabId ? { tabId } : {}) }));
+
+  let currentSessionId = claudeSessionId || null;
+  const config = loadMergedConfig();
+
+  // ── Step 2: Each BMAD agent briefly discusses the task ─────────────────
+  const agentPerspectives = [];
+  for (const agent of PARTY_AGENTS) {
+    ws.send(JSON.stringify({ type:'agent_status', agent: agent.id, status:`${agent.emoji} ${agent.name} reviewing...`, ...(tabId ? { tabId } : {}) }));
+    const agentSkillPrompt = config.skills[agent.id] ? buildSystemPrompt([agent.id], config) : `You are ${agent.name}. Be concise.`;
+    const agentPrompt = `As ${agent.name}, review this task in 2-3 sentences from your specialist perspective. Focus on your key concern, approach, or recommendation.\n\nTASK: ${prompt}`;
+    let agentText = '';
+    await new Promise(res => {
+      let _s = false; const _r = () => { if (!_s) { _s = true; res(); } };
+      cli.send({ prompt: agentPrompt, sessionId: currentSessionId, model, maxTurns: 1, systemPrompt: agentSkillPrompt, allowedTools: [], abortController })
+        .onText(t => { agentText += t; })
+        .onSessionId(sid => { currentSessionId = sid; })
+        .onError(() => _r()).onDone(() => _r());
+    });
+    const perspText = `\n**${agent.emoji} ${agent.name}:** ${agentText.trim()}\n`;
+    agentPerspectives.push({ agent: agent.id, name: agent.name, text: agentText.trim() });
+    _addBuf(perspText);
+    ws.send(JSON.stringify({ type:'text', text: perspText, agent: agent.id, ...(tabId ? { tabId } : {}) }));
+    ws.send(JSON.stringify({ type:'party_agent_spoke', agent: agent.id, name: agent.name, emoji: agent.emoji, text: agentText.trim(), ...(tabId ? { tabId } : {}) }));
+    if (abortController?.signal?.aborted) break;
+  }
+
+  ws.send(JSON.stringify({ type:'agent_status', agent:'party-host', status:'📋 Synthesizing discussion into execution plan...', ...(tabId ? { tabId } : {}) }));
+
+  // ── Step 3: Synthesize discussion into execution plan ──────────────────
+  const synthPrompt = `Based on the BMAD team discussion above, create a concrete execution plan. Break into 2-5 subtasks with specific roles. Respond ONLY in JSON:\n{"plan":"...","agents":[{"id":"agent-1","role":"developer","task":"...","depends_on":[]}]}\n\nAgent perspectives:\n${agentPerspectives.map(a => `${a.name}: ${a.text}`).join('\n')}\n\nTASK: ${prompt}`;
+  let planText = '';
+  await new Promise(res => {
+    let _s = false; const _r = () => { if (!_s) { _s = true; res(); } };
+    cli.send({ prompt: synthPrompt, sessionId: currentSessionId, model, maxTurns: 1, allowedTools: [], abortController })
+      .onText(t => { planText += t; })
+      .onSessionId(sid => { currentSessionId = sid; })
+      .onError(() => _r()).onDone(() => _r());
+  });
+
+  let plan = null;
+  try { const m = planText.match(/\{[\s\S]*\}/); if (m) plan = JSON.parse(m[0]); } catch {}
+
+  if (!plan?.agents?.length) {
+    ws.send(JSON.stringify({ type:'agent_status', agent:'party-host', status:'⚠️ Falling back to single mode', ...(tabId ? { tabId } : {}) }));
+    return runCliSingle(p);
+  }
+
+  const planSummaryText = `\n---\n📋 **Execution Plan:** ${plan.plan}\n🤖 ${plan.agents.map(a => `${a.id}(${a.role})`).join(', ')}\n---\n`;
+  _addBuf(planSummaryText);
+  ws.send(JSON.stringify({ type:'text', text: planSummaryText, ...(tabId ? { tabId } : {}) }));
+  ws.send(JSON.stringify({ type:'agent_plan', plan: plan.plan, agents: plan.agents.map(a => ({ id: a.id, role: a.role, task: a.task })), ...(tabId ? { tabId } : {}) }));
+
+  // ── Step 4: Execute the plan (reuse multi-agent execution loop) ─────────
+  const completed = new Set(), results = {};
+  const remaining = [...plan.agents];
+  while (remaining.length) {
+    const runnable = remaining.filter(a => (a.depends_on||[]).every(d => completed.has(d)));
+    if (!runnable.length) break;
+    await Promise.all(runnable.map(async agent => {
+      remaining.splice(remaining.indexOf(agent), 1);
+      ws.send(JSON.stringify({ type:'agent_status', agent: agent.id, status:`🔄 ${agent.role}`, ...(tabId ? { tabId } : {}) }));
+      const depCtx = (agent.depends_on||[]).map(d => results[d] ? `\n[${d}]:${results[d].substring(0,2000)}` : '').join('');
+      const agentPrompt = agent.task + (depCtx ? '\nContext:'+depCtx : '');
+      const _bmadSkillId = BMAD_ROLE_TO_SKILL[agent.role?.toLowerCase()];
+      let agentSp = _bmadSkillId && config.skills[_bmadSkillId] ? buildSystemPrompt([_bmadSkillId], config) : `You are ${agent.role}. Complete your assigned task thoroughly.`;
+      let agentText = '';
+      await new Promise(res => {
+        let _s = false; const _r = () => { if (!_s) { _s = true; res(); } };
+        cli.send({ prompt: agentPrompt, sessionId: currentSessionId, model, maxTurns: Math.min(maxTurns||30, 50), systemPrompt: agentSp, mcpServers, allowedTools: ['Bash','View','GlobTool','GrepTool','ListDir','SearchReplace','Write'], abortController })
+          .onText(t => { agentText += t; _addBuf(t); try { ws.send(JSON.stringify({ type:'text', text:t, agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} })
+          .onTool((n,i) => { try { ws.send(JSON.stringify({ type:'tool', tool:n, input:(i||'').substring(0,600), agent:agent.id, ...(tabId ? { tabId } : {}) })); } catch {} })
+          .onSessionId(sid => { currentSessionId = sid; })
+          .onError(err => { try { ws.send(JSON.stringify({ type:'agent_status', agent:agent.id, status:`❌ ${err.substring(0,200)}`, ...(tabId ? { tabId } : {}) })); } catch {} _r(); })
+          .onDone(() => _r());
+      });
+      results[agent.id] = agentText;
+      completed.add(agent.id);
+      ws.send(JSON.stringify({ type:'agent_status', agent:agent.id, status:`✅ ${agent.role}`, ...(tabId ? { tabId } : {}) }));
+    }));
+  }
+
+  ws.send(JSON.stringify({ type:'agent_status', agent:'party-host', status:'✅ Party Mode complete', ...(tabId ? { tabId } : {}) }));
+  return currentSessionId;
+}
+
+// ── Task 11: BMAD role → skill ID mapping ────────────────────────────────────
+const BMAD_ROLE_TO_SKILL = {
+  'architect':       'architect',
+  'developer':       'developer',
+  'qa-engineer':     'qa-engineer',
+  'tech-writer':     'tech-writer',
+  'ux-designer':     'ux-designer',
+  'analyst':         'analyst',
+  'product-manager': 'product-manager',
+  'scrum-master':    'scrum-master',
+  'bmad-master':     'bmad-master',
+  'quick-flow':      'quick-flow',
+  // Common synonyms
+  'tester':          'qa-engineer',
+  'qa':              'qa-engineer',
+  'documentation':   'tech-writer',
+  'writer':          'tech-writer',
+  'design':          'ux-designer',
+  'ux':              'ux-designer',
+  'backend':         'backend',
+  'frontend':        'frontend',
+  'devops':          'devops',
+  'security':        'security',
+};
+
 // --- Multi-Agent (CLI only) ---
 async function runMultiAgent(p) {
   const { prompt, systemPrompt, mcpServers, model, maxTurns, ws, sessionId, abortController, claudeSessionId, workdir, tabId } = p;
@@ -1849,7 +2000,8 @@ async function runMultiAgent(p) {
   const cli = new ClaudeCLI({ cwd: effectiveWorkdir });
   let planText = '';
   // Orchestrator gets existing session context via --resume if available
-  const planPrompt = `You are a lead architect. Break this into 2-5 subtasks. Respond ONLY in JSON:\n{"plan":"...","agents":[{"id":"agent-1","role":"...","task":"...","depends_on":[]}]}\n\nTASK: ${prompt}`;
+  // Task 11: Use BMAD role names in orchestrator prompt for persona mapping
+  const planPrompt = `You are a BMAD lead architect. Break this into 2-5 subtasks, assigning each to the most appropriate BMAD specialist. Use these exact role names when applicable: architect, developer, qa-engineer, tech-writer, ux-designer, analyst, product-manager. Respond ONLY in JSON:\n{"plan":"...","agents":[{"id":"agent-1","role":"developer","task":"...","depends_on":[]}]}\n\nTASK: ${prompt}`;
   let currentSessionId = claudeSessionId || null;
 
   await new Promise(res => {
@@ -1892,7 +2044,18 @@ async function runMultiAgent(p) {
       ws.send(JSON.stringify({ type:'agent_status', agent:agent.id, status:`🔄 ${agent.role}`, ...(tabId ? { tabId } : {}) }));
       const depCtx = (agent.depends_on||[]).map(d => results[d] ? `\n[${d}]:${results[d].substring(0,2000)}` : '').join('');
       const agentPrompt = agent.task + (depCtx ? '\nContext:'+depCtx : '');
-      const agentSp = `You are ${agent.role}. Complete your assigned task thoroughly. Be concise in output.`;
+      // Task 11: Map agent role to BMAD skill and build skill-based system prompt
+      const _bmadSkillId = BMAD_ROLE_TO_SKILL[agent.role?.toLowerCase()] || null;
+      let agentSp;
+      if (_bmadSkillId) {
+        try {
+          const _skillConfig = loadMergedConfig();
+          if (_skillConfig.skills[_bmadSkillId]) {
+            agentSp = buildSystemPrompt([_bmadSkillId], _skillConfig);
+          }
+        } catch {}
+      }
+      if (!agentSp) agentSp = `You are ${agent.role}. Complete your assigned task thoroughly. Be concise in output.`;
       const agentTools = ['Bash','View','GlobTool','GrepTool','ListDir','SearchReplace','Write'];
       let agentText = '';
 
@@ -3976,6 +4139,8 @@ wss.on('connection', (ws) => {
         try { db.prepare(`UPDATE sessions SET remote_host=? WHERE id=?`).run(_activeProj.remoteHost, localSessionId); } catch {}
       } else if (agentMode==='multi') {
         newCid = await runMultiAgent(params);
+      } else if (agentMode==='party') {
+        newCid = await runPartyMode(params);
       } else {
         const result = await runCliSingle(params);
         newCid = result.cid;
