@@ -626,13 +626,23 @@ async function startTask(task) {
     const _skillAnnotation = (task.description || '').match(/<!--\s*bmad-skills:\s*(\[[\s\S]*?\])\s*-->/);
     if (_skillAnnotation) {
       try {
-        const _skillIds = JSON.parse(_skillAnnotation[1]);
+        let _skillIds = JSON.parse(_skillAnnotation[1]);
+        // Always include bmad-master as orchestrator
+        if (!_skillIds.includes('bmad-master')) _skillIds = ['bmad-master', ..._skillIds];
         if (Array.isArray(_skillIds) && _skillIds.length) {
           const _skillConfig = loadMergedConfig();
           taskSystemPrompt = buildSystemPrompt(_skillIds, _skillConfig);
           log.info(`[taskWorker] injecting BMAD skills for task "${task.title}": ${_skillIds.join(', ')}`);
         }
       } catch (e) { log.warn('[taskWorker] bmad-skills parse error', { error: e.message }); }
+    }
+    // If no explicit skill annotation, still use bmad-master as default
+    if (!taskSystemPrompt) {
+      const _skillConfig = loadMergedConfig();
+      if (_skillConfig.skills['bmad-master']) {
+        taskSystemPrompt = buildSystemPrompt(['bmad-master'], _skillConfig);
+        log.info(`[taskWorker] using BMAD Master as default orchestrator for task "${task.title}"`);
+      }
     }
 
     // Auto-continue loop: keep resuming until agent completes or budget exhausted
@@ -2784,6 +2794,25 @@ function findSprintStatusFile(workdir) {
     path.join(workdir, 'sprint-status.yaml'),
     path.join(workdir, '_bmad', 'sprint-status.yaml'),
   ];
+  // Also check the openclaw workspace for a project with the same base name
+  const baseName = path.basename(workdir);
+  const homeDir = os.homedir();
+  const ocWorkspace = path.join(homeDir, '.openclaw', 'workspace');
+  // Try exact match and common variations (e.g., golf_casino → golf_casino_app)
+  const variations = [baseName, baseName + '_app', baseName.replace(/-/g, '_'), baseName.replace(/_/g, '-')];
+  for (const v of variations) {
+    candidates.push(path.join(ocWorkspace, v, '_bmad-output', 'implementation-artifacts', 'sprint-status.yaml'));
+    candidates.push(path.join(ocWorkspace, v, '_bmad-output', 'sprint-status.yaml'));
+    candidates.push(path.join(ocWorkspace, v, 'sprint-status.yaml'));
+  }
+  // Also do a shallow scan of ocWorkspace for any project with _bmad-output
+  try {
+    for (const dir of fs.readdirSync(ocWorkspace, { withFileTypes: true })) {
+      if (!dir.isDirectory()) continue;
+      const candidate = path.join(ocWorkspace, dir.name, '_bmad-output', 'implementation-artifacts', 'sprint-status.yaml');
+      if (!candidates.includes(candidate)) candidates.push(candidate);
+    }
+  } catch {}
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
@@ -4382,6 +4411,10 @@ wss.on('connection', (ws) => {
       }
 
       // Build system prompt — cached by skill combination, skill files cached in memory
+      // BMAD Master is always included as the default orchestrator
+      if (config.skills['bmad-master'] && !effectiveSkills.includes('bmad-master')) {
+        effectiveSkills = ['bmad-master', ...effectiveSkills];
+      }
       const systemPrompt = buildSystemPrompt(effectiveSkills, config);
 
       const mcpServers = {};
