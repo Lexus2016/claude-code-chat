@@ -54,7 +54,7 @@ Create a card. Describe what you want. Move it to "To Do". Claude picks it up au
 
 ![Kanban workflow](public/screenshots/kanban-diagram.png)
 
-Queue 10 tasks, walk away, come back to all of them done. Cards can run **in parallel** (independent tasks) or **sequentially** (linked sessions, so Claude remembers what the previous task built).
+Queue 10 tasks, walk away, come back to all of them done. Cards can run **in parallel** (independent tasks) or **sequentially** (linked sessions, so Claude remembers what the previous task built). **Cross-tab sync** — edit or move a task in one browser tab and every other open tab updates instantly, no refresh needed.
 
 **True parallel execution** — independent tasks now run simultaneously even in the same project directory. No artificial workdir locks holding them back. Chain tasks still respect sequential order, but standalone cards run at full speed, in parallel, the way you'd expect.
 
@@ -385,6 +385,7 @@ After setup, Claude Code CLI will use your OpenRouter API key and the model you 
 | 🔗 Remote Access | One-click public URL via cloudflared or ngrok — access Studio from anywhere |
 | 📱 Mobile UI | Touch-optimized responsive layout for all pages — Chat, Kanban, Schedule |
 | 🔒 File locks | Multiple agents on same codebase — no conflicts |
+| 🔄 Cross-tab Kanban sync | Edit or move a task in one tab — every other open tab updates instantly |
 | 🔄 Tab drag-and-drop | Reorder chat tabs by dragging — organize your workspace your way |
 | 💾 History | Everything saved to SQLite, resume anytime |
 | 📊 Rate limit alerts | Warnings at 80/90/95%, live countdown to reset |

@@ -6410,6 +6410,8 @@ function _renderMsgAt(idx, prepend = false) {
         chipsDiv.innerHTML = atts.map(a =>
           a.type && a.type.startsWith('image/')
             ? `<div class="att-chip chip-img"><img src="data:${escH(a.type)};base64,${a.base64}" alt=""><span class="chip-name">${escH(a.name || 'image')}</span></div>`
+            : a.type === 'ssh'
+            ? `<div class="att-chip"><span class="chip-icon">🖥️</span><span class="chip-name">${escH(a.label || 'SSH')}</span></div>`
             : `<div class="att-chip"><span class="chip-icon">📄</span><span class="chip-name">${escH(a.name || 'file')}</span></div>`
         ).join('');
         w.querySelector('.msg').before(chipsDiv);
