@@ -942,7 +942,7 @@ async function runNow(id) {
     await apiFetch(`/api/tasks/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'todo', scheduled_at: null }),
+      body: JSON.stringify({ status: 'todo' }),
     });
     toast(t('toast.queued'), 'ok');
     await refresh();
@@ -1090,10 +1090,12 @@ async function saveTask() {
   const recurrence_end_at = (recurrence && endDateRaw)
     ? Math.floor(new Date(endDateRaw + 'T23:59:59').getTime() / 1000) : null;
 
+  const orig = editingId ? tasks.find(x => x.id === editingId) : null;
   const body = {
     title,
     description: $i('fDesc')?.value || '',
-    status: 'todo',
+    // Preserve existing status on edit — don't forcibly queue a running/backlog task
+    status: orig ? (orig.status || 'todo') : 'todo',
     session_id: $i('fSession')?.value || null,
     workdir: curWorkdir || null,
     model: getScVal('model', 'sonnet'),
@@ -1114,7 +1116,6 @@ async function saveTask() {
       });
       toast(t('toast.scheduled'), 'ok');
     } else {
-      const orig = tasks.find(x => x.id === editingId);
       if (orig) body.sort_order = orig.sort_order;
       await apiFetch(`/api/tasks/${editingId}`, {
         method: 'PUT',

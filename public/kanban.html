@@ -854,6 +854,7 @@ function setupDropZone(el){
       }
       await apiFetch(`/api/tasks/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({status:newStatus,sort_order,session_id:session_id||undefined})});
+      try{const bc=new BroadcastChannel('tasks');bc.postMessage({type:'task_changed',id});bc.close();}catch{}
       await refresh(true);
     }catch(err){if(err.message!=='401')toast(t('toast.err')+err.message,true);}
   });
@@ -1120,6 +1121,7 @@ async function saveTask(){
       const orig=tasks.find(tk=>tk.id===editingId);
       if(orig)body.sort_order=orig.sort_order;
       await apiFetch(`/api/tasks/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      try{const bc=new BroadcastChannel('tasks');bc.postMessage({type:'task_changed',id:editingId});bc.close();}catch{}
       toast(t('toast.saved'));
     }
     closeModal();
