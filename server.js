@@ -1209,10 +1209,12 @@ function autoModeProcess() {
         )
     `).get(workdir, workdir);
     
-    // Non-chain tasks in todo or active
+    // Non-chain BMAD tasks in active state (exclude scheduled/non-BMAD tasks from auto mode count)
     const nonChainActive = db.prepare(`
       SELECT COUNT(*) as cnt FROM tasks 
-      WHERE workdir=? AND chain_id IS NULL AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
+      WHERE workdir=? AND chain_id IS NULL 
+        AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
+        AND notes LIKE '%[bmad:%'
     `).get(workdir);
     
     const currentStories = (runningChains?.cnt || 0) + (pendingChains?.cnt || 0) + (nonChainActive?.cnt || 0);
