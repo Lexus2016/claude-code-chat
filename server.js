@@ -43,6 +43,14 @@ const openclawBridge = require('./openclaw-bridge');
 // Reads LOG_LEVEL + NODE_ENV from process.env (already populated from .env above).
 // Production: emits newline-delimited JSON for log aggregators (Loki, Datadog, etc.)
 // Development: human-readable output with icons.
+const BMAD_PHASE_MODEL_MAP = {
+  'bmad_brainstorm': 'opus',
+  'bmad_prd': 'opus',
+  'bmad_architecture': 'opus',
+  'bmad_implementation': 'sonnet',
+  'bmad_qa': 'sonnet',
+};
+
 const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
 const _logLevel  = LOG_LEVELS[(process.env.LOG_LEVEL || 'info').toLowerCase()] ?? LOG_LEVELS.info;
 const _isProd    = process.env.NODE_ENV === 'production';
@@ -541,6 +549,11 @@ async function startTask(task) {
   let _retryBackoffMs = 0; // Set by auto-retry logic, used by finally for processQueue delay
   let sessionId = task.session_id;
   let _taskStartedAt = Date.now();
+  // Override model based on BMAD phase tag
+  const bmadPhaseTagMatch = (task.notes || '').match(/\[bmad-phase:(\w+)\]/);
+  if (bmadPhaseTagMatch && BMAD_PHASE_MODEL_MAP[bmadPhaseTagMatch[1]]) {
+    task.model = BMAD_PHASE_MODEL_MAP[bmadPhaseTagMatch[1]];
+  }
   try {
     // Create session + link task + mark in_progress — all atomic
     db.transaction(() => {
@@ -899,11 +912,24 @@ function processQueue() {
       '[]', '[]', 'auto', 'single', task.model || 'sonnet', 'cli', workdir
     );
     
-    // Create the BMAD workflow chain: analyze → design → implement → review → verify
+    // Create the BMAD workflow chain: analyze → elicitate → design → validate → implement → review → verify
     const subtasks = [
+      // 1. Analyst (opus) — brainstorm phase + Party Mode
       {
         title: `[BMAD Analyst] Research & Requirements — ${storyId}`,
-        description: `<!-- bmad-skills: ["analyst","product-manager"] -->\n` +
+        description:
+          `PARTY MODE ACTIVE: Before executing your analysis, facilitate a multi-agent discussion.\n` +
+          `Simulate perspectives from these BMAD agents:\n` +
+          `- Mary (Analyst 📊): Market research, competitive analysis\n` +
+          `- John (PM 📋): Requirements, stakeholder alignment\n` +
+          `- Sally (UX 🎨): User experience, interaction patterns\n` +
+          `- Bob (SM 🏃): Sprint feasibility, story breakdown\n\n` +
+          `Discussion format:\n` +
+          `1. Each agent states their perspective on the story requirements (2-3 sentences each)\n` +
+          `2. Identify areas of agreement and disagreement\n` +
+          `3. Synthesize into unified requirements\n\n` +
+          `Then proceed with your analysis tasks.\n\n` +
+          `<!-- bmad-skills: ["analyst","product-manager"] -->\n` +
           `You are the BMAD Analyst. Analyze the story requirements for: ${storyId}\n\n` +
           `Epic context from sprint: ${task.title}\n\n${task.description || ''}\n\n` +
           `Tasks:\n` +
@@ -915,10 +941,41 @@ function processQueue() {
           `\nOutput: A clear story file with requirements, acceptance criteria, and technical notes.`,
         sort: 0,
         bmadPhase: 'bmad_brainstorm',
+        model: 'opus',
       },
+      // 2. Elicitation: Pre-mortem + Stakeholder Round Table (opus) — brainstorm phase
+      {
+        title: `[BMAD Elicitation] Requirements Analysis — ${storyId}`,
+        description:
+          `<!-- bmad-skills: ["advanced-elicitation","analyst"] -->\n` +
+          `You are running Advanced Elicitation on the Analyst's output for story: ${storyId}\n\n` +
+          `Apply these elicitation methods in sequence:\n` +
+          `1. **Pre-mortem Analysis**: Assume this feature already failed in production. Work backward to find what went wrong. Document gaps in the requirements.\n` +
+          `2. **Stakeholder Round Table**: Evaluate requirements from perspectives of: end user, developer, product owner, operations team. Find blind spots.\n\n` +
+          `Read the story file that was just created/updated by the Analyst.\n` +
+          `Apply each method, document findings, and update the story file with enhanced requirements.\n` +
+          `Output: Enhanced story file with elicitation-improved requirements.`,
+        sort: 1,
+        depends: [0],
+        bmadPhase: 'bmad_brainstorm',
+        model: 'opus',
+      },
+      // 3. Architect (opus) — architecture phase + Party Mode
       {
         title: `[BMAD Architect] Technical Design — ${storyId}`,
-        description: `<!-- bmad-skills: ["architect"] -->\n` +
+        description:
+          `PARTY MODE ACTIVE: Before designing, facilitate a multi-agent architecture discussion.\n` +
+          `Simulate perspectives from:\n` +
+          `- Winston (Architect 🏗️): System design, scalability, patterns\n` +
+          `- Amelia (Developer 💻): Implementation feasibility, code patterns\n` +
+          `- Quinn (QA 🧪): Testability, edge cases, failure modes\n` +
+          `- Bob (SM 🏃): Story impact, sprint planning implications\n\n` +
+          `Discussion format:\n` +
+          `1. Each agent evaluates the proposed approach (2-3 sentences each)\n` +
+          `2. Debate trade-offs and alternatives\n` +
+          `3. Converge on the recommended technical approach\n\n` +
+          `Then proceed with your architecture tasks.\n\n` +
+          `<!-- bmad-skills: ["architect"] -->\n` +
           `You are the BMAD Architect. Design the technical approach for: ${storyId}\n\n` +
           `Tasks:\n` +
           `1. Read the story file created by the Analyst\n` +
@@ -927,13 +984,33 @@ function processQueue() {
           `4. Identify potential issues and edge cases\n` +
           `5. Create a brief implementation plan as a checklist\n` +
           `\nOutput: A technical design comment in the story file with implementation plan.`,
-        sort: 1,
-        depends: [0],
+        sort: 2,
+        depends: [1],
         bmadPhase: 'bmad_architecture',
+        model: 'opus',
       },
+      // 4. Elicitation: ADR + First Principles (opus) — architecture phase
+      {
+        title: `[BMAD Elicitation] Architecture Validation — ${storyId}`,
+        description:
+          `<!-- bmad-skills: ["advanced-elicitation","architect"] -->\n` +
+          `You are running Advanced Elicitation on the Architecture for story: ${storyId}\n\n` +
+          `Apply these methods:\n` +
+          `1. **Architecture Decision Records**: Document each technical decision with explicit trade-offs, alternatives considered, and rationale.\n` +
+          `2. **First Principles Thinking**: Strip away assumptions about the architecture. What must be true? Rebuild the approach from ground truth.\n\n` +
+          `Read the architecture notes in the story file.\n` +
+          `Apply methods, document ADRs, and update the story file.\n` +
+          `Output: Architecture section with ADRs and first-principles validation.`,
+        sort: 3,
+        depends: [2],
+        bmadPhase: 'bmad_architecture',
+        model: 'opus',
+      },
+      // 5. Developer (sonnet) — implementation phase
       {
         title: `[BMAD Developer] Implementation — ${storyId}`,
-        description: `<!-- bmad-skills: ["developer"] -->\n` +
+        description:
+          `<!-- bmad-skills: ["developer"] -->\n` +
           `You are the BMAD Developer. Implement the story: ${storyId}\n\n` +
           `Tasks:\n` +
           `1. Read the story file with requirements and technical design\n` +
@@ -942,14 +1019,20 @@ function processQueue() {
           `4. Handle error cases and edge cases identified by the Architect\n` +
           `5. Run any existing tests to ensure nothing is broken\n` +
           `\nOutput: Working implementation that satisfies all acceptance criteria.`,
-        sort: 2,
-        depends: [1],
+        sort: 4,
+        depends: [3],
         bmadPhase: 'bmad_implementation',
+        model: 'sonnet',
       },
+      // 6. Code Reviewer + Red Team elicitation (sonnet) — implementation phase
       {
         title: `[BMAD Code Review] Review — ${storyId}`,
-        description: `<!-- bmad-skills: ["code-review","analyst"] -->\n` +
+        description:
+          `<!-- bmad-skills: ["code-review","analyst"] -->\n` +
           `You are the BMAD Code Reviewer. Review the implementation of: ${storyId}\n\n` +
+          `Apply Red Team vs Blue Team elicitation:\n` +
+          `- **Red Team (attacker)**: Find vulnerabilities, edge cases, logic flaws, security issues\n` +
+          `- **Blue Team (defender)**: Validate robustness, propose hardening, verify fixes\n\n` +
           `Tasks:\n` +
           `1. Review all changes made by the Developer\n` +
           `2. Check against the acceptance criteria in the story file\n` +
@@ -957,13 +1040,16 @@ function processQueue() {
           `4. Check for regressions or missed edge cases\n` +
           `5. Fix any issues found (HIGH severity: fix immediately, MEDIUM: fix, LOW: note)\n` +
           `\nOutput: Code review summary with issues found and fixes applied.`,
-        sort: 3,
-        depends: [2],
+        sort: 5,
+        depends: [4],
         bmadPhase: 'bmad_implementation',
+        model: 'sonnet',
       },
+      // 7. QA (sonnet) — qa phase
       {
         title: `[BMAD QA] Verification — ${storyId}`,
-        description: `<!-- bmad-skills: ["qa-engineer"] -->\n` +
+        description:
+          `<!-- bmad-skills: ["qa-engineer"] -->\n` +
           `You are the BMAD QA Engineer. Verify the implementation of: ${storyId}\n\n` +
           `Tasks:\n` +
           `1. Read the story acceptance criteria\n` +
@@ -972,9 +1058,10 @@ function processQueue() {
           `4. Check for edge cases and error scenarios\n` +
           `5. Update the story status to 'done' if all checks pass\n` +
           `\nOutput: Test results and verification report.`,
-        sort: 4,
-        depends: [3],
+        sort: 6,
+        depends: [5],
         bmadPhase: 'bmad_qa',
+        model: 'sonnet',
       },
     ];
     
@@ -990,7 +1077,7 @@ function processQueue() {
           `[bmad:${storyId}] [bmad-phase:${st.bmadPhase}] Chain subtask ${i+1}/${subtasks.length}`,
           'todo', st.sort,
           chainSessionId, workdir,
-          task.model || 'sonnet', 'auto', 'single', 50, // max_turns 50 for thorough work
+          st.model || task.model || 'sonnet', 'auto', 'single', 50, // max_turns 50 for thorough work
           null, realDeps.length ? JSON.stringify(realDeps) : null,
           chainId, null, null, null, null
         );

@@ -188,6 +188,8 @@ button:focus-visible,a:focus-visible{ border-radius:5px; }
 .badge-accent{ background:var(--abg); color:var(--accent2); border:1px solid rgba(124,106,239,.2); max-width:140px; overflow:hidden; text-overflow:ellipsis; }
 .badge-green{ background:rgba(63,185,80,.12); color:var(--green); border:1px solid rgba(63,185,80,.2); }
 .badge-orange{ background:rgba(229,164,53,.12); color:var(--orange); border:1px solid rgba(229,164,53,.2); }
+.badge-purple{ background:rgba(139,92,246,.12); color:#a78bfa; border:1px solid rgba(139,92,246,.25); }
+.badge-blue{ background:rgba(56,139,253,.1); color:#58a6ff; border:1px solid rgba(56,139,253,.2); }
 .badge-sched{ background:rgba(56,139,253,.1); color:#58a6ff; border:1px solid rgba(56,139,253,.22); display:inline-flex; align-items:center; gap:3px; cursor:default; }
 .sched-info{ display:flex; align-items:center; gap:7px; background:rgba(56,139,253,.07); border:1px solid rgba(56,139,253,.2); color:#58a6ff; border-radius:6px; padding:8px 12px; font-size:12px; line-height:1.4; }
 .sched-info strong{ color:#79b8ff; font-weight:600; }
@@ -405,8 +407,8 @@ const TR = {
     'proj.label':'Проект:','proj.all':'— Всі проекти —','proj.search':'Пошук проекту...','search.empty':'Не знайдено',
     'col.backlog':'Backlog','col.todo':'До виконання','col.in_progress':'В процесі',
     'col.done':'Виконано','col.cancelled':'Скасовано','col.empty':'Немає задач',
-    'col.bmad_brainstorm':'🧠 Brainstorm','col.bmad_prd':'📋 PRD',
-    'col.bmad_architecture':'🏗️ Architecture','col.bmad_implementation':'💻 Implementation','col.bmad_qa':'🧪 QA',
+    'col.bmad_brainstorm':'🧠 Brainstorm (opus)','col.bmad_prd':'📋 PRD (opus)',
+    'col.bmad_architecture':'🏗️ Architecture (opus)','col.bmad_implementation':'💻 Implementation (sonnet)','col.bmad_qa':'🧪 QA (sonnet)',
     'bmad.gate_warn':'⚠️ BMAD gate: попередня фаза ще не завершена',
     'bmad.tpl_filled':'✓ Шаблон застосовано','bmad.use_tpl':'🧙 Шаблон BMAD',
     'modal.add':'Нова задача','modal.edit':'Редагувати задачу',
@@ -439,8 +441,8 @@ const TR = {
     'proj.label':'Project:','proj.all':'— All projects —','proj.search':'Search project...','search.empty':'Not found',
     'col.backlog':'Backlog','col.todo':'To Do','col.in_progress':'In Progress',
     'col.done':'Done','col.cancelled':'Cancelled','col.empty':'No tasks',
-    'col.bmad_brainstorm':'🧠 Brainstorm','col.bmad_prd':'📋 PRD',
-    'col.bmad_architecture':'🏗️ Architecture','col.bmad_implementation':'💻 Implementation','col.bmad_qa':'🧪 QA',
+    'col.bmad_brainstorm':'🧠 Brainstorm (opus)','col.bmad_prd':'📋 PRD (opus)',
+    'col.bmad_architecture':'🏗️ Architecture (opus)','col.bmad_implementation':'💻 Implementation (sonnet)','col.bmad_qa':'🧪 QA (sonnet)',
     'bmad.gate_warn':'⚠️ BMAD gate: previous phase not completed yet',
     'bmad.tpl_filled':'✓ Template applied','bmad.use_tpl':'🧙 BMAD Template',
     'modal.add':'New task','modal.edit':'Edit task',
@@ -473,8 +475,8 @@ const TR = {
     'proj.label':'Проект:','proj.all':'— Все проекты —','proj.search':'Поиск проекта...','search.empty':'Не найдено',
     'col.backlog':'Backlog','col.todo':'К выполнению','col.in_progress':'В процессе',
     'col.done':'Выполнено','col.cancelled':'Отменено','col.empty':'Нет задач',
-    'col.bmad_brainstorm':'🧠 Brainstorm','col.bmad_prd':'📋 PRD',
-    'col.bmad_architecture':'🏗️ Architecture','col.bmad_implementation':'💻 Implementation','col.bmad_qa':'🧪 QA',
+    'col.bmad_brainstorm':'🧠 Brainstorm (opus)','col.bmad_prd':'📋 PRD (opus)',
+    'col.bmad_architecture':'🏗️ Architecture (opus)','col.bmad_implementation':'💻 Implementation (sonnet)','col.bmad_qa':'🧪 QA (sonnet)',
     'bmad.gate_warn':'⚠️ BMAD gate: предыдущая фаза ещё не завершена',
     'bmad.tpl_filled':'✓ Шаблон применён','bmad.use_tpl':'🧙 Шаблон BMAD',
     'modal.add':'Новая задача','modal.edit':'Редактировать задачу',
@@ -830,7 +832,7 @@ function makeCard(tk){
   }else if(tk.session_id){
     sessBadge=`<span class="badge badge-accent">💬 ${escH(tk.sess_title||t('card.sess_fallback'))}</span>`;
   }
-  const modelBadge=tk.sess_model?`<span class="badge badge-muted">${escH(tk.sess_model)}</span>`:'';
+  const modelBadge=tk.sess_model?`<span class="badge ${tk.sess_model==='opus'?'badge-purple':tk.sess_model==='haiku'?'badge-green':'badge-blue'}">${escH(tk.sess_model)}</span>`:'';
   const retryBadge=tk.retry_count>0?`<span class="badge badge-muted" title="${tk.retry_count} ${t('card.retry_tooltip')}">${escH(t('card.retry'))} ×${tk.retry_count}</span>`:'';
   const schedBadge=(tk.scheduled_at&&(tk.status==='todo'||tk.status==='backlog'))?`<span class="badge badge-sched" title="${escH(t('card.sched_tip'))} ${escH(fmtScheduledAt(tk.scheduled_at))}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/></svg>${escH(fmtScheduledAt(tk.scheduled_at))}</span>`:'';
   el.innerHTML=`
