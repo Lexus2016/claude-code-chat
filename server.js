@@ -553,6 +553,10 @@ async function startTask(task) {
   const bmadPhaseTagMatch = (task.notes || '').match(/\[bmad-phase:(\w+)\]/);
   if (bmadPhaseTagMatch && BMAD_PHASE_MODEL_MAP[bmadPhaseTagMatch[1]]) {
     task.model = BMAD_PHASE_MODEL_MAP[bmadPhaseTagMatch[1]];
+    // Also update the session model so cli.send picks it up
+    if (task.session_id) {
+      db.prepare(`UPDATE sessions SET model=?, updated_at=datetime('now') WHERE id=?`).run(task.model, task.session_id);
+    }
   }
   try {
     // Create session + link task + mark in_progress — all atomic
