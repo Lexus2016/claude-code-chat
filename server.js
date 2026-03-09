@@ -449,7 +449,7 @@ const stmts = {
   getTasksEtag: db.prepare(`SELECT COALESCE(MAX(updated_at),'') as ts, COUNT(*) as n FROM tasks`),
   // processQueue hot-path — prepared once, reused every 60 s
   getTodoTasks:      db.prepare(`SELECT * FROM tasks WHERE status='todo' AND (scheduled_at IS NULL OR scheduled_at <= unixepoch()) ORDER BY sort_order ASC, created_at ASC`),
-  getInProgressTasks: db.prepare(`SELECT * FROM tasks WHERE status='in_progress'`),
+  getInProgressTasks: db.prepare(`SELECT * FROM tasks WHERE status IN ('in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')`),
   getTasksByChain:   db.prepare(`SELECT * FROM tasks WHERE chain_id=? ORDER BY sort_order ASC`),
   // startTask hot-path
   setTaskSession:    db.prepare(`UPDATE tasks SET session_id=?, updated_at=datetime('now') WHERE id=?`),
@@ -549,7 +549,13 @@ async function startTask(task) {
         stmts.createSession.run(sessionId, task.title.substring(0, 200), '[]', '[]', task.mode || 'auto', task.agent_mode || 'single', task.model || 'sonnet', 'cli', task.workdir || null);
         stmts.setTaskSession.run(sessionId, task.id);
       }
-      stmts.setTaskInProgress.run(task.id);
+      // For BMAD chain tasks, set status to BMAD phase column instead of generic 'in_progress'
+      const bmadPhaseMatch = (task.notes || '').match(/\[bmad-phase:(\w+)\]/);
+      if (bmadPhaseMatch) {
+        db.prepare(`UPDATE tasks SET status=?, updated_at=datetime('now') WHERE id=?`).run(bmadPhaseMatch[1], task.id);
+      } else {
+        stmts.setTaskInProgress.run(task.id);
+      }
     })();
     // Build prompt
     const parts = [task.title];
@@ -908,6 +914,7 @@ function processQueue() {
           `5. Write your analysis as a comment at the top of the story file\n` +
           `\nOutput: A clear story file with requirements, acceptance criteria, and technical notes.`,
         sort: 0,
+        bmadPhase: 'bmad_brainstorm',
       },
       {
         title: `[BMAD Architect] Technical Design — ${storyId}`,
@@ -922,6 +929,7 @@ function processQueue() {
           `\nOutput: A technical design comment in the story file with implementation plan.`,
         sort: 1,
         depends: [0],
+        bmadPhase: 'bmad_architecture',
       },
       {
         title: `[BMAD Developer] Implementation — ${storyId}`,
@@ -936,6 +944,7 @@ function processQueue() {
           `\nOutput: Working implementation that satisfies all acceptance criteria.`,
         sort: 2,
         depends: [1],
+        bmadPhase: 'bmad_implementation',
       },
       {
         title: `[BMAD Code Review] Review — ${storyId}`,
@@ -950,6 +959,7 @@ function processQueue() {
           `\nOutput: Code review summary with issues found and fixes applied.`,
         sort: 3,
         depends: [2],
+        bmadPhase: 'bmad_implementation',
       },
       {
         title: `[BMAD QA] Verification — ${storyId}`,
@@ -964,6 +974,7 @@ function processQueue() {
           `\nOutput: Test results and verification report.`,
         sort: 4,
         depends: [3],
+        bmadPhase: 'bmad_qa',
       },
     ];
     
@@ -976,7 +987,7 @@ function processQueue() {
         const realDeps = (st.depends || []).map(d => taskIds[d]);
         stmts.createTask.run(
           taskIds[i], st.title.substring(0, 200), st.description.substring(0, 2000),
-          `[bmad:${storyId}] Chain subtask ${i+1}/${subtasks.length}`,
+          `[bmad:${storyId}] [bmad-phase:${st.bmadPhase}] Chain subtask ${i+1}/${subtasks.length}`,
           'todo', st.sort,
           chainSessionId, workdir,
           task.model || 'sonnet', 'auto', 'single', 50, // max_turns 50 for thorough work
@@ -984,9 +995,8 @@ function processQueue() {
           chainId, null, null, null, null
         );
       }
-      // Mark the original task as done (it's been expanded into a chain)
-      db.prepare(`UPDATE tasks SET status='done', notes=?, chain_id=?, updated_at=datetime('now') WHERE id=?`)
-        .run(`${task.notes || ''} [expanded to chain: ${chainId}]`, chainId, task.id);
+      // Remove the original task — it's been replaced by the chain subtasks
+      db.prepare(`DELETE FROM tasks WHERE id=?`).run(task.id);
     })();
     
     log.info(`[BMAD] Created dispatch chain for ${storyId}: ${subtasks.length} subtasks, chain=${chainId}`);
