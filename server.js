@@ -1043,15 +1043,19 @@ function processQueue() {
         }
       } catch (e) { log.error('depends_on parse error', { taskId: task.id, error: e.message }); }
     }
-    // Workdir lock: only for chain tasks — prevents parallel chains from conflicting in the same directory.
-    // Independent tasks (no chain_id) can run in parallel per workdir; the user explicitly chose concurrency.
-    if (task.chain_id && task.workdir && (occupiedWorkdirs.has(task.workdir) || startedWorkdirs.has(task.workdir))) continue;
+    // Workdir lock: only for chain tasks sharing the SAME chain — prevents sequential chain steps
+    // from conflicting in the same directory. Different chains CAN run in parallel.
+    if (task.chain_id && task.workdir) {
+      const sameChainRunning = inProg.some(t => t.chain_id === task.chain_id && t.workdir === task.workdir)
+        || [...startedWorkdirs].some(key => key === `${task.chain_id}:${task.workdir}`);
+      if (sameChainRunning) continue;
+    }
     if (task.session_id) {
       // Shared session: one at a time per session
       if (!occupiedSids.has(task.session_id) && !startedSids.has(task.session_id)) {
         occupiedSids.add(task.session_id);
         startedSids.add(task.session_id);
-        if (task.workdir) startedWorkdirs.add(task.workdir);
+        if (task.chain_id && task.workdir) startedWorkdirs.add(`${task.chain_id}:${task.workdir}`);
         startTask(task).catch(e => console.error('[taskWorker]', e));
       }
     } else {
