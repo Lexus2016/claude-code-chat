@@ -4028,6 +4028,15 @@ app.post('/api/projects', (req,res) => {
     const id = 'proj-' + genId();
     projects.push({ id, name, workdir, createdAt:new Date().toISOString() });
     saveProjects(projects);
+    // Auto-install BMAD in new local projects (background, non-blocking)
+    if (!fs.existsSync(path.join(workdir, '_bmad'))) {
+      const { execFile: ef } = require('child_process');
+      ef('npx', ['bmad-method', 'install', '--directory', workdir, '--tools', 'claude-code', '--user-name', 'Mwogi', '--modules', 'bmm', '--yes'], { timeout: 120000, cwd: workdir }, (err) => {
+        if (err) log.warn('BMAD auto-install failed', { workdir, error: err.message });
+        else log.info('BMAD auto-installed', { workdir });
+      });
+      actions.push('bmad install (background)');
+    }
     res.json({ ok:true, id, actions });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });

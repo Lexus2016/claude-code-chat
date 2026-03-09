@@ -33,6 +33,12 @@ When user saves a task with a workflow type, the task:
 
 ### 4. Workflow Definitions (in server.js)
 
+**CRITICAL**: Each project now has BMAD installed locally at `{workdir}/_bmad/`. Workflow prompts MUST reference the project's own BMAD files:
+- Agent definitions: `{workdir}/_bmad/bmm/agents/`
+- Workflow files: `{workdir}/_bmad/bmm/workflows/`
+- Config: `{workdir}/_bmad/bmm/config.yaml`
+- Output: `{workdir}/_bmad-output/planning-artifacts/` and `implementation-artifacts/`
+
 ```javascript
 const BMAD_WORKFLOWS = {
   analysis: {
@@ -42,7 +48,7 @@ const BMAD_WORKFLOWS = {
     model: 'opus',
     outputFile: 'product-brief.md',
     outputDir: '_bmad-output/planning-artifacts',
-    prompt: (title, workdir) => `You are the BMAD Analyst. Run the product brief creation workflow for: ${title}\n\nProject directory: ${workdir}\n\nPARTY MODE ACTIVE: Facilitate a multi-agent discussion.\n\nCreate the product brief and save it to ${workdir}/_bmad-output/planning-artifacts/product-brief.md\n\nAfter creating the product brief, output the full document.`
+    prompt: (title, workdir) => `Read your agent definition from ${workdir}/_bmad/bmm/agents/analyst.md and the config from ${workdir}/_bmad/bmm/config.yaml\n\nYou are the BMAD Analyst. Run the product brief creation workflow from ${workdir}/_bmad/bmm/workflows/1-analysis/create-product-brief/\n\nProject: ${title}\nProject directory: ${workdir}\n\nPARTY MODE ACTIVE: Facilitate a multi-agent discussion.\n\nCreate the product brief and save it to ${workdir}/_bmad-output/planning-artifacts/product-brief.md`
   },
   planning: {
     label: '📋 Planning → PRD',
@@ -51,7 +57,7 @@ const BMAD_WORKFLOWS = {
     model: 'opus',
     outputFile: 'prd.md',
     outputDir: '_bmad-output/planning-artifacts',
-    prompt: (title, workdir) => `You are the BMAD Product Manager. Create the PRD for: ${title}\n\nProject directory: ${workdir}\n\nRead the product brief from ${workdir}/_bmad-output/planning-artifacts/product-brief.md if it exists.\n\nCreate the PRD and save it to ${workdir}/_bmad-output/planning-artifacts/prd.md\n\nAfter creating the PRD, output the full document.`
+    prompt: (title, workdir) => `Read your agent definition from ${workdir}/_bmad/bmm/agents/pm.md and the config from ${workdir}/_bmad/bmm/config.yaml\n\nYou are the BMAD Product Manager. Run the PRD creation workflow from ${workdir}/_bmad/bmm/workflows/2-plan-workflows/create-prd/\n\nProject: ${title}\nProject directory: ${workdir}\n\nRead the product brief from ${workdir}/_bmad-output/planning-artifacts/product-brief.md if it exists.\n\nCreate the PRD and save to ${workdir}/_bmad-output/planning-artifacts/prd.md`
   },
   solutioning: {
     label: '🏗️ Solutioning → Architecture + Epics',
@@ -60,7 +66,7 @@ const BMAD_WORKFLOWS = {
     model: 'opus',
     outputFile: 'architecture.md',
     outputDir: '_bmad-output/planning-artifacts',
-    prompt: (title, workdir) => `You are the BMAD Architect. Run the solutioning workflow for: ${title}\n\nProject directory: ${workdir}\n\nRead the PRD from ${workdir}/_bmad-output/planning-artifacts/prd.md if it exists.\n\n1. First create the architecture document and save to ${workdir}/_bmad-output/planning-artifacts/architecture.md\n2. Then create the epics and stories document and save to ${workdir}/_bmad-output/planning-artifacts/epics.md\n\nOutput both documents when complete.`
+    prompt: (title, workdir) => `Read your agent definition from ${workdir}/_bmad/bmm/agents/architect.md and the config from ${workdir}/_bmad/bmm/config.yaml\n\nYou are the BMAD Architect. Run the solutioning workflow.\n\nProject: ${title}\nProject directory: ${workdir}\n\nRead the PRD from ${workdir}/_bmad-output/planning-artifacts/prd.md if it exists.\n\n1. Run the architecture workflow from ${workdir}/_bmad/bmm/workflows/3-solutioning/create-architecture/ and save to ${workdir}/_bmad-output/planning-artifacts/architecture.md\n2. Run the epics workflow from ${workdir}/_bmad/bmm/workflows/3-solutioning/create-epics-and-stories/ and save to ${workdir}/_bmad-output/planning-artifacts/epics.md`
   },
   'sprint-planning': {
     label: '📐 Sprint Planning → sprint-status.yaml',
@@ -69,7 +75,7 @@ const BMAD_WORKFLOWS = {
     model: 'sonnet',
     outputFile: 'sprint-status.yaml',
     outputDir: '_bmad-output/implementation-artifacts',
-    prompt: (title, workdir) => `You are the BMAD Scrum Master. Run sprint planning for: ${title}\n\nProject directory: ${workdir}\n\nRead the epics from ${workdir}/_bmad-output/planning-artifacts/epics.md\n\nGenerate sprint-status.yaml and save to ${workdir}/_bmad-output/implementation-artifacts/sprint-status.yaml\n\nFollow the BMAD sprint planning workflow exactly.`
+    prompt: (title, workdir) => `Read your agent definition from ${workdir}/_bmad/bmm/agents/sm.md and the config from ${workdir}/_bmad/bmm/config.yaml\n\nYou are the BMAD Scrum Master. Run the sprint planning workflow from ${workdir}/_bmad/bmm/workflows/4-implementation/sprint-planning/\n\nProject: ${title}\nProject directory: ${workdir}\n\nRead the epics from ${workdir}/_bmad-output/planning-artifacts/epics.md\n\nGenerate sprint-status.yaml and save to ${workdir}/_bmad-output/implementation-artifacts/sprint-status.yaml\n\nFollow the workflow steps exactly.`
   },
   shard: {
     label: '✂️ Shard Document',
@@ -78,7 +84,7 @@ const BMAD_WORKFLOWS = {
     model: 'sonnet',
     outputFile: null,
     outputDir: null,
-    prompt: (title, workdir) => `Run the BMAD shard-doc task. The user wants to split this document: ${title}\n\nProject directory: ${workdir}\n\nUse npx @kayvan/markdown-tree-parser to split the document into smaller files.`
+    prompt: (title, workdir) => `Run the BMAD shard-doc task. Split this document: ${title}\n\nProject directory: ${workdir}\n\nUse: npx @kayvan/markdown-tree-parser explode [source-file] [destination-folder]\n\nThe destination folder should be named after the source file without .md extension, in the same directory.`
   }
 };
 ```
