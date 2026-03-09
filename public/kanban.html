@@ -205,13 +205,13 @@ button:focus-visible,a:focus-visible{ border-radius:5px; }
 .ov.hidden{ display:none; }
 .modal{ background:var(--s1); border:1px solid var(--border); border-radius:var(--r-lg); width:100%; max-width:1200px; max-height:92vh; display:flex; flex-direction:column; box-shadow:var(--shadow-xl); }
 .modal.has-chat{ max-width:1200px; }
-.modal-split{ display:flex; flex:1; overflow:hidden; min-height:0; }
+.modal-split{ display:flex; flex:1; overflow:hidden; min-height:0; height:0; }
 .modal-left{ flex:0 0 420px; display:flex; flex-direction:column; border-right:1px solid var(--border); overflow-y:auto; }
 .modal-left .modal-body{ padding:16px; gap:10px; }
-.modal-right{ flex:1; display:flex; flex-direction:column; min-width:0; }
-.modal-right .chat-panel{ border:none; border-radius:0; flex:1; display:flex; flex-direction:column; height:100%; }
+.modal-right{ flex:1; display:flex; flex-direction:column; min-width:0; height:100%; overflow:hidden; }
+.modal-right .chat-panel{ border:none; border-radius:0; flex:1; display:flex; flex-direction:column; height:100%; overflow:hidden; }
 .modal-right .chat-panel-hd{ padding:10px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
-.modal-right .chat-panel-body{ flex:1; overflow-y:auto; padding:10px 14px; font-size:12px; }
+.modal-right .chat-panel-body{ flex:1; overflow-y:auto; padding:10px 14px; font-size:12px; min-height:0; }
 .modal-right .chat-msg{ margin-bottom:8px; padding:6px 8px; border-radius:6px; background:var(--s2); }
 .modal-right .chat-role{ font-size:10px; font-weight:700; margin-bottom:2px; }
 .modal-right .chat-role.assistant{ color:var(--accent); }
@@ -407,7 +407,7 @@ textarea.inp{ resize:vertical; min-height:80px; }
         <div class="modal-ft" id="modalFt"></div>
       </div>
       <div class="modal-right" id="modalChat" style="display:none">
-        <div id="chatContainer"></div>
+        <div id="chatContainer" style="display:flex;flex-direction:column;height:100%;overflow:hidden"></div>
       </div>
     </div>
   </div>
