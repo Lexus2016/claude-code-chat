@@ -52,6 +52,54 @@ const BMAD_PHASE_MODEL_MAP = {
   'bmad_qa': 'sonnet',
 };
 
+const BMAD_WORKFLOWS = {
+  analysis: {
+    label: '🔍 Analysis → Product Brief',
+    agent: 'analyst',
+    skills: ['bmad-brainstorming', 'bmad-party-mode'],
+    model: 'opus',
+    outputFile: 'product-brief.md',
+    outputDir: '_bmad-output/planning-artifacts',
+    prompt: (title, workdir) => `You are the BMAD Analyst. Run the product brief creation workflow for: ${title}\n\nProject directory: ${workdir}\n\nPARTY MODE ACTIVE: Facilitate a multi-agent discussion.\n\nCreate the product brief and save it to ${workdir}/_bmad-output/planning-artifacts/product-brief.md\n\nAfter creating the product brief, output the full document.`
+  },
+  planning: {
+    label: '📋 Planning → PRD',
+    agent: 'product-manager',
+    skills: ['bmad-create-prd', 'bmad-party-mode'],
+    model: 'opus',
+    outputFile: 'prd.md',
+    outputDir: '_bmad-output/planning-artifacts',
+    prompt: (title, workdir) => `You are the BMAD Product Manager. Create the PRD for: ${title}\n\nProject directory: ${workdir}\n\nRead the product brief from ${workdir}/_bmad-output/planning-artifacts/product-brief.md if it exists.\n\nCreate the PRD and save it to ${workdir}/_bmad-output/planning-artifacts/prd.md\n\nAfter creating the PRD, output the full document.`
+  },
+  solutioning: {
+    label: '🏗️ Solutioning → Architecture + Epics',
+    agent: 'architect',
+    skills: ['bmad-create-architecture', 'bmad-create-epics', 'bmad-party-mode'],
+    model: 'opus',
+    outputFile: 'architecture.md',
+    outputDir: '_bmad-output/planning-artifacts',
+    prompt: (title, workdir) => `You are the BMAD Architect. Run the solutioning workflow for: ${title}\n\nProject directory: ${workdir}\n\nRead the PRD from ${workdir}/_bmad-output/planning-artifacts/prd.md if it exists.\n\n1. First create the architecture document and save to ${workdir}/_bmad-output/planning-artifacts/architecture.md\n2. Then create the epics and stories document and save to ${workdir}/_bmad-output/planning-artifacts/epics.md\n\nOutput both documents when complete.`
+  },
+  'sprint-planning': {
+    label: '📐 Sprint Planning → sprint-status.yaml',
+    agent: 'scrum-master',
+    skills: ['bmad-sprint-planning'],
+    model: 'sonnet',
+    outputFile: 'sprint-status.yaml',
+    outputDir: '_bmad-output/implementation-artifacts',
+    prompt: (title, workdir) => `You are the BMAD Scrum Master. Run sprint planning for: ${title}\n\nProject directory: ${workdir}\n\nRead the epics from ${workdir}/_bmad-output/planning-artifacts/epics.md\n\nGenerate sprint-status.yaml and save to ${workdir}/_bmad-output/implementation-artifacts/sprint-status.yaml\n\nFollow the BMAD sprint planning workflow exactly.`
+  },
+  shard: {
+    label: '✂️ Shard Document',
+    agent: 'master',
+    skills: ['bmad-master'],
+    model: 'sonnet',
+    outputFile: null,
+    outputDir: null,
+    prompt: (title, workdir) => `Run the BMAD shard-doc task. The user wants to split this document: ${title}\n\nProject directory: ${workdir}\n\nUse npx @kayvan/markdown-tree-parser to split the document into smaller files.`
+  }
+};
+
 const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
 const _logLevel  = LOG_LEVELS[(process.env.LOG_LEVEL || 'info').toLowerCase()] ?? LOG_LEVELS.info;
 const _isProd    = process.env.NODE_ENV === 'production';
@@ -457,8 +505,8 @@ const stmts = {
   countTasksBySession: db.prepare(`SELECT COUNT(*) as n FROM tasks WHERE session_id=?`),
   getTasksEtag: db.prepare(`SELECT COALESCE(MAX(updated_at),'') as ts, COUNT(*) as n FROM tasks`),
   // processQueue hot-path — prepared once, reused every 60 s
-  getTodoTasks:      db.prepare(`SELECT * FROM tasks WHERE status='todo' AND (scheduled_at IS NULL OR scheduled_at <= unixepoch()) ORDER BY sort_order ASC, created_at ASC`),
-  getInProgressTasks: db.prepare(`SELECT * FROM tasks WHERE status IN ('in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')`),
+  getTodoTasks:      db.prepare(`SELECT * FROM tasks WHERE (status='todo' OR (status='bmad_workflow' AND notes LIKE '%[bmad-workflow:%')) AND (scheduled_at IS NULL OR scheduled_at <= unixepoch()) ORDER BY sort_order ASC, created_at ASC`),
+  getInProgressTasks: db.prepare(`SELECT * FROM tasks WHERE status IN ('in_progress','bmad_workflow','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')`),
   getTasksByChain:   db.prepare(`SELECT * FROM tasks WHERE chain_id=? ORDER BY sort_order ASC`),
   // startTask hot-path
   setTaskSession:    db.prepare(`UPDATE tasks SET session_id=?, updated_at=datetime('now') WHERE id=?`),
@@ -559,6 +607,17 @@ async function startTask(task) {
       db.prepare(`UPDATE sessions SET model=?, updated_at=datetime('now') WHERE id=?`).run(task.model, task.session_id);
     }
   }
+  // Override model and skills based on BMAD workflow tag
+  const bmadWorkflowTagMatch = (task.notes || '').match(/\[bmad-workflow:([\w-]+)\]/);
+  if (bmadWorkflowTagMatch && BMAD_WORKFLOWS[bmadWorkflowTagMatch[1]]) {
+    const wf = BMAD_WORKFLOWS[bmadWorkflowTagMatch[1]];
+    task.model = wf.model;
+    task._bmadWorkflow = wf;
+    task._bmadWorkflowType = bmadWorkflowTagMatch[1];
+    if (task.session_id) {
+      db.prepare(`UPDATE sessions SET model=?, updated_at=datetime('now') WHERE id=?`).run(task.model, task.session_id);
+    }
+  }
   try {
     // Create session + link task + mark in_progress — all atomic
     db.transaction(() => {
@@ -571,14 +630,32 @@ async function startTask(task) {
       const bmadPhaseMatch = (task.notes || '').match(/\[bmad-phase:(\w+)\]/);
       if (bmadPhaseMatch) {
         db.prepare(`UPDATE tasks SET status=?, updated_at=datetime('now') WHERE id=?`).run(bmadPhaseMatch[1], task.id);
+      } else if (task._bmadWorkflow) {
+        // BMAD upstream workflow task — keep it in bmad_workflow column while running
+        db.prepare(`UPDATE tasks SET status='bmad_workflow', updated_at=datetime('now') WHERE id=?`).run(task.id);
       } else {
         stmts.setTaskInProgress.run(task.id);
       }
     })();
+    // For BMAD workflow tasks, create output directory and use workflow-specific prompt
+    if (task._bmadWorkflow) {
+      const wf = task._bmadWorkflow;
+      if (wf.outputDir) {
+        const outDir = path.join(task.workdir || WORKDIR, wf.outputDir);
+        fs.mkdirSync(outDir, { recursive: true });
+      }
+    }
     // Build prompt
-    const parts = [task.title];
-    if (task.description?.trim()) parts.push(task.description.trim());
-    if (task.notes?.trim()) parts.push(`---\nУточнення:\n${task.notes.trim()}`);
+    let parts;
+    if (task._bmadWorkflow) {
+      // Use the workflow-defined prompt instead of task title/desc
+      const wfPrompt = task._bmadWorkflow.prompt(task.title, task.workdir || WORKDIR);
+      parts = [wfPrompt];
+    } else {
+      parts = [task.title];
+      if (task.description?.trim()) parts.push(task.description.trim());
+      if (task.notes?.trim()) parts.push(`---\nУточнення:\n${task.notes.trim()}`);
+    }
     // Write attachment files to workspace so Claude Code can read them
     if (task.attachments) {
       try {
@@ -648,7 +725,17 @@ async function startTask(task) {
     // If the task description contains a <!-- bmad-skills: [...] --> annotation,
     // extract the skill IDs and build + inject a system prompt.
     let taskSystemPrompt = null;
-    const _skillAnnotation = (task.description || '').match(/<!--\s*bmad-skills:\s*(\[[\s\S]*?\])\s*-->/);
+    // For BMAD workflow tasks, use their defined skills
+    if (task._bmadWorkflow && task._bmadWorkflow.skills && task._bmadWorkflow.skills.length) {
+      try {
+        let _skillIds = [...task._bmadWorkflow.skills];
+        if (!_skillIds.includes('bmad-master')) _skillIds = ['bmad-master', ..._skillIds];
+        const _skillConfig = loadMergedConfig();
+        taskSystemPrompt = buildSystemPrompt(_skillIds, _skillConfig);
+        log.info(`[taskWorker] injecting BMAD workflow skills for "${task.title}" (${task._bmadWorkflowType}): ${_skillIds.join(', ')}`);
+      } catch (e) { log.warn('[taskWorker] bmad-workflow skills injection error', { error: e.message }); }
+    }
+    const _skillAnnotation = !taskSystemPrompt && (task.description || '').match(/<!--\s*bmad-skills:\s*(\[[\s\S]*?\])\s*-->/);
     if (_skillAnnotation) {
       try {
         let _skillIds = JSON.parse(_skillAnnotation[1]);
@@ -1195,25 +1282,25 @@ function autoModeProcess() {
     const runningChains = db.prepare(`
       SELECT COUNT(DISTINCT chain_id) as cnt FROM tasks 
       WHERE workdir=? AND chain_id IS NOT NULL 
-        AND status IN ('in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
+        AND status IN ('in_progress','bmad_workflow','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
     `).get(workdir);
-    
+
     // Also count chains that are fully in 'todo' (just expanded, waiting to start)
     const pendingChains = db.prepare(`
       SELECT COUNT(DISTINCT chain_id) as cnt FROM tasks
       WHERE workdir=? AND chain_id IS NOT NULL AND status='todo'
         AND chain_id NOT IN (
-          SELECT DISTINCT chain_id FROM tasks 
-          WHERE workdir=? AND chain_id IS NOT NULL 
-            AND status IN ('in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa','done','cancelled')
+          SELECT DISTINCT chain_id FROM tasks
+          WHERE workdir=? AND chain_id IS NOT NULL
+            AND status IN ('in_progress','bmad_workflow','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa','done','cancelled')
         )
     `).get(workdir, workdir);
-    
+
     // Non-chain BMAD tasks in active state (exclude scheduled/non-BMAD tasks from auto mode count)
     const nonChainActive = db.prepare(`
-      SELECT COUNT(*) as cnt FROM tasks 
-      WHERE workdir=? AND chain_id IS NULL 
-        AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
+      SELECT COUNT(*) as cnt FROM tasks
+      WHERE workdir=? AND chain_id IS NULL
+        AND status IN ('todo','in_progress','bmad_workflow','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
         AND notes LIKE '%[bmad:%'
     `).get(workdir);
     
@@ -5183,7 +5270,7 @@ wss.on('connection', (ws) => {
         // Catch up new subscriber with any already-running task (unless suppressed)
         if (!noCatchUp) {
           const runningTask = db.prepare(
-            `SELECT * FROM tasks WHERE session_id=? AND status IN ('in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa') LIMIT 1`
+            `SELECT * FROM tasks WHERE session_id=? AND status IN ('in_progress','bmad_workflow','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa') LIMIT 1`
           ).get(sessionId);
           if (runningTask && ws.readyState === 1) {
             ws.send(JSON.stringify({ type: 'task_started', taskId: runningTask.id, title: runningTask.title, tabId: sessionId }));

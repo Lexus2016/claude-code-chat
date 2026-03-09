@@ -166,6 +166,8 @@ button:focus-visible,a:focus-visible{ border-radius:5px; }
 .dot-in_progress{ background:var(--orange); }
 .dot-done{ background:var(--green); }
 .dot-cancelled{ background:var(--red); }
+/* BMAD upstream workflow colour */
+.dot-bmad_workflow{ background:#9333ea; }
 /* BMAD phase colours */
 .dot-bmad_brainstorm{ background:#a855f7; }
 .dot-bmad_prd{ background:#7c6aef; }
@@ -450,6 +452,7 @@ const TR = {
     'proj.label':'Проект:','proj.all':'— Всі проекти —','proj.search':'Пошук проекту...','search.empty':'Не знайдено',
     'col.backlog':'Backlog','col.todo':'До виконання','col.in_progress':'В процесі',
     'col.done':'Виконано','col.cancelled':'Скасовано','col.empty':'Немає задач',
+    'col.bmad_workflow':'🔮 BMAD Workflow',
     'col.bmad_brainstorm':'🧠 Brainstorm (opus)','col.bmad_prd':'📋 PRD (opus)',
     'col.bmad_architecture':'🏗️ Architecture (opus)','col.bmad_implementation':'💻 Implementation (sonnet)','col.bmad_qa':'🧪 QA (sonnet)',
     'bmad.gate_warn':'⚠️ BMAD gate: попередня фаза ще не завершена',
@@ -484,6 +487,7 @@ const TR = {
     'proj.label':'Project:','proj.all':'— All projects —','proj.search':'Search project...','search.empty':'Not found',
     'col.backlog':'Backlog','col.todo':'To Do','col.in_progress':'In Progress',
     'col.done':'Done','col.cancelled':'Cancelled','col.empty':'No tasks',
+    'col.bmad_workflow':'🔮 BMAD Workflow',
     'col.bmad_brainstorm':'🧠 Brainstorm (opus)','col.bmad_prd':'📋 PRD (opus)',
     'col.bmad_architecture':'🏗️ Architecture (opus)','col.bmad_implementation':'💻 Implementation (sonnet)','col.bmad_qa':'🧪 QA (sonnet)',
     'bmad.gate_warn':'⚠️ BMAD gate: previous phase not completed yet',
@@ -518,6 +522,7 @@ const TR = {
     'proj.label':'Проект:','proj.all':'— Все проекты —','proj.search':'Поиск проекта...','search.empty':'Не найдено',
     'col.backlog':'Backlog','col.todo':'К выполнению','col.in_progress':'В процессе',
     'col.done':'Выполнено','col.cancelled':'Отменено','col.empty':'Нет задач',
+    'col.bmad_workflow':'🔮 BMAD Workflow',
     'col.bmad_brainstorm':'🧠 Brainstorm (opus)','col.bmad_prd':'📋 PRD (opus)',
     'col.bmad_architecture':'🏗️ Architecture (opus)','col.bmad_implementation':'💻 Implementation (sonnet)','col.bmad_qa':'🧪 QA (sonnet)',
     'bmad.gate_warn':'⚠️ BMAD gate: предыдущая фаза ещё не завершена',
@@ -564,8 +569,8 @@ document.getElementById('confirmOkBtn').textContent=t('confirm.ok');
 // BMAD phase columns (planning workflow) + standard kanban columns
 const BMAD_PHASES=['bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa'];
 const BMAD_PHASE_SET=new Set(BMAD_PHASES);
-// Helper: is a task actively running? (standard in_progress OR any BMAD phase)
-function isTaskActive(status){ return status==='in_progress'||BMAD_PHASE_SET.has(status); }
+// Helper: is a task actively running? (standard in_progress, bmad_workflow, OR any BMAD phase)
+function isTaskActive(status){ return status==='in_progress'||status==='bmad_workflow'||BMAD_PHASE_SET.has(status); }
 // Template mappings for BMAD phases (Task 8)
 const BMAD_PHASE_TEMPLATES={
   'bmad_brainstorm':'brainstorming-session',
@@ -576,6 +581,7 @@ const BMAD_PHASE_TEMPLATES={
 const COLS=[
   // ── Standard: left side ──
   {id:'backlog',dot:'dot-backlog'},
+  {id:'bmad_workflow',dot:'dot-bmad_workflow',bmad:true},
   {id:'todo',dot:'dot-todo'},
   // ── BMAD workflow phases: center ──
   {id:'bmad_brainstorm',dot:'dot-bmad_brainstorm',bmad:true,bmadOrder:0},
@@ -905,11 +911,14 @@ function makeCard(tk){
   const modelBadge=tk.sess_model?`<span class="badge ${tk.sess_model==='opus'?'badge-purple':tk.sess_model==='haiku'?'badge-green':'badge-blue'}">${escH(tk.sess_model)}</span>`:'';
   const retryBadge=tk.retry_count>0?`<span class="badge badge-muted" title="${tk.retry_count} ${t('card.retry_tooltip')}">${escH(t('card.retry'))} ×${tk.retry_count}</span>`:'';
   const schedBadge=(tk.scheduled_at&&(tk.status==='todo'||tk.status==='backlog'))?`<span class="badge badge-sched" title="${escH(t('card.sched_tip'))} ${escH(fmtScheduledAt(tk.scheduled_at))}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/></svg>${escH(fmtScheduledAt(tk.scheduled_at))}</span>`:'';
+  const wfTagM=(tk.notes||'').match(/\[bmad-workflow:([\w-]+)\]/);
+  const wfLabels={analysis:'🔍 Analysis',planning:'📋 Planning',solutioning:'🏗️ Solutioning','sprint-planning':'📐 Sprint Planning',shard:'✂️ Shard'};
+  const wfBadge=wfTagM?`<span class="badge badge-purple" style="background:rgba(147,51,234,.18);color:#c084fc">${escH(wfLabels[wfTagM[1]]||wfTagM[1])}</span>`:'';
   el.innerHTML=`
     <div class="card-title">${escH(tk.title)}</div>
     ${tk.description?`<div class="card-desc">${escH(tk.description)}</div>`:''}
     <div class="card-foot">
-      ${schedBadge}${sessBadge}${modelBadge}${retryBadge}
+      ${schedBadge}${wfBadge}${sessBadge}${modelBadge}${retryBadge}
       <span class="card-time">${relTime(tk.updated_at)}</span>
       <span class="card-actions">
         <button class="cbtn" title="${t('modal.edit')}" onclick="event.stopPropagation();openEditModal('${tk.id}')">✎</button>
@@ -1159,6 +1168,8 @@ function buildForm(tk={}){
   const isNew=!tk.id;
   const m=tk.mode||kbSettings.mode||'auto', ag=tk.agent_mode||kbSettings.agent_mode||'single', mdl=tk.model||kbSettings.model||'sonnet', eng=tk.engine||kbSettings.engine||'cli';
   const statusOpts=COLS.filter(c=>!c.hidden).map(c=>`<option value="${c.id}"${tk.status===c.id?' selected':''}>${escH(t('col.'+c.id))}</option>`).join('');
+  const wfMatch=(tk.notes||'').match(/\[bmad-workflow:([\w-]+)\]/);
+  const wfVal=wfMatch?wfMatch[1]:'';
   const sessOpts=`<option value="">${escH(isNew?t('modal.new_session'):t('modal.no_session'))}</option>`+
     sessions.map(s=>`<option value="${s.id}"${tk.session_id===s.id?' selected':''}>${escH((s.title||s.id).substring(0,60))}</option>`).join('');
   const visClass=!tk.session_id?' visible':'';
@@ -1216,6 +1227,16 @@ function buildForm(tk={}){
     </div>
     <div><label class="lbl">${t('modal.notes')}</label>
       <textarea id="fNotes" class="inp" rows="2" placeholder="…" maxlength="2000">${escH(tk.notes||'')}</textarea>
+    </div>
+    <div><label class="lbl">BMAD Workflow</label>
+      <select id="fWorkflow" class="sel">
+        <option value=""${wfVal===''?' selected':''}>None (regular task)</option>
+        <option value="analysis"${wfVal==='analysis'?' selected':''}>🔍 Analysis → Product Brief</option>
+        <option value="planning"${wfVal==='planning'?' selected':''}>📋 Planning → PRD</option>
+        <option value="solutioning"${wfVal==='solutioning'?' selected':''}>🏗️ Solutioning → Architecture + Epics</option>
+        <option value="sprint-planning"${wfVal==='sprint-planning'?' selected':''}>📐 Sprint Planning → sprint-status.yaml</option>
+        <option value="shard"${wfVal==='shard'?' selected':''}>✂️ Shard Document</option>
+      </select>
     </div>
     <div>
       <label class="lbl">${t('modal.attach')}</label>
@@ -1389,11 +1410,18 @@ async function saveTask(){
   let session_id=$i('fSession')?.value||null;
   const cfg=getSessCfg();
   const existingTask=editingId?tasks.find(t=>t.id===editingId):null;
+  // Handle BMAD workflow selection
+  const wfType=$i('fWorkflow')?.value||'';
+  let rawNotes=$i('fNotes')?($i('fNotes').value||''):(existingTask?.notes||'');
+  // Remove any existing workflow tag before re-tagging
+  rawNotes=rawNotes.replace(/\[bmad-workflow:[\w-]+\]/g,'').trim();
+  if(wfType) rawNotes=(rawNotes?rawNotes+'\n':'')+`[bmad-workflow:${wfType}]`;
+  const resolvedStatus=wfType?'bmad_workflow':($i('fStatus')?.value||'backlog');
   const body={
     title,
     description:$i('fDesc')?($i('fDesc').value||''):(existingTask?.description||''),
-    notes:$i('fNotes')?($i('fNotes').value||''):(existingTask?.notes||''),
-    status:$i('fStatus')?.value||'backlog',
+    notes:rawNotes,
+    status:resolvedStatus,
     session_id,
     workdir:curWorkdir||null,
     model:cfg.model,
