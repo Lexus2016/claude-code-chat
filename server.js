@@ -1188,32 +1188,40 @@ function autoModeProcess() {
   for (const proj of autoProjects) {
     const workdir = proj.workdir;
     
-    // Count active work: tasks that are todo, in BMAD phases, or in_progress for this project
-    const activeTasks = db.prepare(`
-      SELECT COUNT(*) as cnt FROM tasks 
-      WHERE workdir=? AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
-    `).get(workdir);
-    
-    // Count active chains (each BMAD story expands to 7 subtasks, but counts as 1 chain)
-    const activeChains = db.prepare(`
+    // Count stories actively being processed:
+    // A "story" = a chain that has been expanded from a backlog task
+    // Count distinct chains that have at least one task NOT in 'todo' and NOT in 'done'/'cancelled'
+    // (i.e., actively executing in a BMAD phase or in_progress)
+    const runningChains = db.prepare(`
       SELECT COUNT(DISTINCT chain_id) as cnt FROM tasks 
-      WHERE workdir=? AND chain_id IS NOT NULL AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
+      WHERE workdir=? AND chain_id IS NOT NULL 
+        AND status IN ('in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
     `).get(workdir);
     
-    // Also count non-chain todo tasks
-    const nonChainTodo = db.prepare(`
+    // Also count chains that are fully in 'todo' (just expanded, waiting to start)
+    const pendingChains = db.prepare(`
+      SELECT COUNT(DISTINCT chain_id) as cnt FROM tasks
+      WHERE workdir=? AND chain_id IS NOT NULL AND status='todo'
+        AND chain_id NOT IN (
+          SELECT DISTINCT chain_id FROM tasks 
+          WHERE workdir=? AND chain_id IS NOT NULL 
+            AND status IN ('in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa','done','cancelled')
+        )
+    `).get(workdir, workdir);
+    
+    // Non-chain tasks in todo or active
+    const nonChainActive = db.prepare(`
       SELECT COUNT(*) as cnt FROM tasks 
-      WHERE workdir=? AND chain_id IS NULL AND status='todo'
+      WHERE workdir=? AND chain_id IS NULL AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
     `).get(workdir);
     
-    const currentActive = (activeChains?.cnt || 0) + (nonChainTodo?.cnt || 0);
+    const currentStories = (runningChains?.cnt || 0) + (pendingChains?.cnt || 0) + (nonChainActive?.cnt || 0);
     
-    if (currentActive >= AUTO_MODE_CONCURRENCY) continue; // at capacity
+    if (currentStories >= AUTO_MODE_CONCURRENCY) continue;
     
-    const slotsAvailable = AUTO_MODE_CONCURRENCY - currentActive;
+    const slotsAvailable = AUTO_MODE_CONCURRENCY - currentStories;
     
-    // Get backlog tasks for this project, respecting sort order (which preserves epic/story order)
-    // Only pick non-chain tasks (original sprint stories, not chain subtasks)
+    // Get backlog tasks for this project, respecting sort order
     const backlogTasks = db.prepare(`
       SELECT * FROM tasks 
       WHERE workdir=? AND status='backlog' AND chain_id IS NULL
@@ -1257,8 +1265,8 @@ function autoModeProcess() {
   setImmediate(processQueue);
 }
 
-// Run auto mode check every 30 seconds
-setInterval(autoModeProcess, 30000);
+// Run auto mode check every 15 seconds (same cadence as processQueue)
+setInterval(autoModeProcess, 15000);
 
 // ── Periodic Progress Summary via OpenClaw (every 2 hours) ──
 setInterval(() => {
