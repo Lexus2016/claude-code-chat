@@ -531,18 +531,20 @@ const BMAD_PHASE_TEMPLATES={
   'bmad_qa':'readiness-report',
 };
 const COLS=[
-  // ── BMAD workflow phases ──
+  // ── Standard: left side ──
+  {id:'backlog',dot:'dot-backlog'},
+  {id:'todo',dot:'dot-todo'},
+  // ── BMAD workflow phases: center ──
   {id:'bmad_brainstorm',dot:'dot-bmad_brainstorm',bmad:true,bmadOrder:0},
   {id:'bmad_prd',dot:'dot-bmad_prd',bmad:true,bmadOrder:1},
   {id:'bmad_architecture',dot:'dot-bmad_architecture',bmad:true,bmadOrder:2},
   {id:'bmad_implementation',dot:'dot-bmad_implementation',bmad:true,bmadOrder:3},
   {id:'bmad_qa',dot:'dot-bmad_qa',bmad:true,bmadOrder:4},
-  // ── Standard kanban columns ──
-  {id:'backlog',dot:'dot-backlog'},
-  {id:'todo',dot:'dot-todo'},
-  {id:'in_progress',dot:'dot-in_progress'},
+  // ── Standard: right side ──
   {id:'done',dot:'dot-done'},
   {id:'cancelled',dot:'dot-cancelled'},
+  // Hidden but kept for data compatibility
+  {id:'in_progress',dot:'dot-in_progress',hidden:true},
 ];
 let tasks=[],sessions=[],projects=[];
 let curWorkdir=null,lastEtag='',refreshTimer=null,modalMode=null,editingId=null,dragSrcId=null;
@@ -773,9 +775,9 @@ function updateStats(){
       <span class="kb-stat-lbl">${t('col.todo')}</span>
     </div>
     <div class="kb-stat">
-      <div class="kb-stat-dot dot-in_progress"></div>
+      <div class="kb-stat-dot dot-bmad_implementation"></div>
       <span class="kb-stat-num">${counts.in_progress}</span>
-      <span class="kb-stat-lbl">${t('col.in_progress')}</span>
+      <span class="kb-stat-lbl">Active</span>
     </div>
     <div class="kb-stat-spacer"></div>
     <div class="kb-stat">
@@ -795,6 +797,7 @@ function renderBoard(){
   const board=$i('board');board.innerHTML='';
   let lastWasBmad=false;
   for(const col of COLS){
+    if(col.hidden) continue; // Skip hidden columns (e.g., in_progress)
     const isBmad=!!col.bmad;
     // Add divider between BMAD section and standard section
     if(lastWasBmad&&!isBmad){
@@ -995,7 +998,7 @@ async function openEditModal(id){
 function buildForm(tk={}){
   const isNew=!tk.id;
   const m=tk.mode||kbSettings.mode||'auto', ag=tk.agent_mode||kbSettings.agent_mode||'single', mdl=tk.model||kbSettings.model||'sonnet', eng=tk.engine||kbSettings.engine||'cli';
-  const statusOpts=COLS.map(c=>`<option value="${c.id}"${tk.status===c.id?' selected':''}>${escH(t('col.'+c.id))}</option>`).join('');
+  const statusOpts=COLS.filter(c=>!c.hidden).map(c=>`<option value="${c.id}"${tk.status===c.id?' selected':''}>${escH(t('col.'+c.id))}</option>`).join('');
   const sessOpts=`<option value="">${escH(isNew?t('modal.new_session'):t('modal.no_session'))}</option>`+
     sessions.map(s=>`<option value="${s.id}"${tk.session_id===s.id?' selected':''}>${escH((s.title||s.id).substring(0,60))}</option>`).join('');
   const visClass=!tk.session_id?' visible':'';
