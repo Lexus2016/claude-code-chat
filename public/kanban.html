@@ -364,6 +364,7 @@ textarea.inp{ resize:vertical; min-height:80px; }
   <span class="refresh-ts" id="refreshTs2"></span>
   <span style="flex:1"></span>
   <button id="sprintSyncBtn" onclick="showSprintSync()" style="background:var(--accent2);color:#fff;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:none" title="Sync BMAD sprint-status.yaml tasks to Kanban">⚡ Sprint Sync</button>
+  <button id="autoModeBtn" onclick="toggleAutoMode()" style="border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:none" title="Auto Mode: automatically process all tasks">🤖 Auto Mode</button>
   <span class="status-dot ok" id="kbStatusEl">Connected</span>
 </div>
 
@@ -1293,13 +1294,58 @@ document.addEventListener('keydown',e=>{
 
 // ─── BMAD Sprint Sync ─────────────────────────────────────────────────────
 async function checkSprintStatus() {
-  if (!curWorkdir) { $i('sprintSyncBtn').style.display='none'; return; }
+  if (!curWorkdir) { $i('sprintSyncBtn').style.display='none'; $i('autoModeBtn').style.display='none'; return; }
   try {
     const r = await apiFetch(`/api/bmad/sprint-status?workdir=${encodeURIComponent(curWorkdir)}`);
     const d = await r.json();
     $i('sprintSyncBtn').style.display = d.found ? '' : 'none';
     window._sprintData = d.found ? d : null;
   } catch { $i('sprintSyncBtn').style.display='none'; }
+  // Update auto mode button state
+  updateAutoModeBtn();
+}
+
+function updateAutoModeBtn() {
+  const btn = $i('autoModeBtn');
+  if (!curWorkdir || !projects.length) { btn.style.display='none'; return; }
+  const proj = projects.find(p => p.workdir === curWorkdir);
+  if (!proj) { btn.style.display='none'; return; }
+  btn.style.display = '';
+  if (proj.autoMode) {
+    btn.style.background = '#ef4444';
+    btn.style.color = '#fff';
+    btn.textContent = '⏸️ Stop Auto';
+    btn.title = 'Auto Mode is ON — processing tasks automatically. Click to stop.';
+  } else {
+    btn.style.background = 'var(--s2)';
+    btn.style.color = 'var(--fg)';
+    btn.style.border = '1px solid var(--border)';
+    btn.textContent = '🤖 Auto Mode';
+    btn.title = 'Enable Auto Mode: automatically process all backlog tasks, 5 at a time';
+  }
+}
+
+async function toggleAutoMode() {
+  const proj = projects.find(p => p.workdir === curWorkdir);
+  if (!proj) return;
+  const newState = !proj.autoMode;
+  if (newState) {
+    const backlogCount = tasks.filter(t => t.status === 'backlog').length;
+    if (!confirm(`Enable Auto Mode for "${proj.name}"?\n\n${backlogCount} backlog tasks will be automatically processed, 5 at a time, until all are done.\n\nEach task goes through the full BMAD pipeline (Analyst → Elicitation → Architect → Elicitation → Developer → Code Review → QA).\n\nContinue?`)) return;
+  }
+  try {
+    await apiFetch(`/api/projects/${proj.id}`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ autoMode: newState })
+    });
+    proj.autoMode = newState;
+    updateAutoModeBtn();
+    toast(newState ? '🤖 Auto Mode enabled' : '⏸️ Auto Mode disabled');
+    if (newState) setTimeout(() => refresh(true), 2000); // refresh to see moved tasks
+  } catch (e) {
+    toast('Error: ' + e.message, true);
+  }
 }
 
 // Check sprint status when project changes

@@ -1177,6 +1177,89 @@ function processQueue() {
 // light enough to be negligible — just two SELECT queries on SQLite)
 setInterval(processQueue, 15000);
 
+// ── Auto Mode: automatically move backlog → todo for auto-enabled projects ──
+const AUTO_MODE_CONCURRENCY = 5; // max concurrent chains per project
+
+function autoModeProcess() {
+  const projects = loadProjects();
+  const autoProjects = projects.filter(p => p.autoMode);
+  if (!autoProjects.length) return;
+
+  for (const proj of autoProjects) {
+    const workdir = proj.workdir;
+    
+    // Count active work: tasks that are todo, in BMAD phases, or in_progress for this project
+    const activeTasks = db.prepare(`
+      SELECT COUNT(*) as cnt FROM tasks 
+      WHERE workdir=? AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
+    `).get(workdir);
+    
+    // Count active chains (each BMAD story expands to 7 subtasks, but counts as 1 chain)
+    const activeChains = db.prepare(`
+      SELECT COUNT(DISTINCT chain_id) as cnt FROM tasks 
+      WHERE workdir=? AND chain_id IS NOT NULL AND status IN ('todo','in_progress','bmad_brainstorm','bmad_prd','bmad_architecture','bmad_implementation','bmad_qa')
+    `).get(workdir);
+    
+    // Also count non-chain todo tasks
+    const nonChainTodo = db.prepare(`
+      SELECT COUNT(*) as cnt FROM tasks 
+      WHERE workdir=? AND chain_id IS NULL AND status='todo'
+    `).get(workdir);
+    
+    const currentActive = (activeChains?.cnt || 0) + (nonChainTodo?.cnt || 0);
+    
+    if (currentActive >= AUTO_MODE_CONCURRENCY) continue; // at capacity
+    
+    const slotsAvailable = AUTO_MODE_CONCURRENCY - currentActive;
+    
+    // Get backlog tasks for this project, respecting sort order (which preserves epic/story order)
+    // Only pick non-chain tasks (original sprint stories, not chain subtasks)
+    const backlogTasks = db.prepare(`
+      SELECT * FROM tasks 
+      WHERE workdir=? AND status='backlog' AND chain_id IS NULL
+      ORDER BY sort_order ASC, created_at ASC
+      LIMIT ?
+    `).all(workdir, slotsAvailable);
+    
+    if (!backlogTasks.length) {
+      // Check if ALL tasks are done — auto mode complete
+      const remaining = db.prepare(`
+        SELECT COUNT(*) as cnt FROM tasks 
+        WHERE workdir=? AND status NOT IN ('done','cancelled')
+      `).get(workdir);
+      
+      if (remaining.cnt === 0) {
+        // All done! Disable auto mode
+        proj.autoMode = false;
+        delete proj.autoModeStartedAt;
+        saveProjects(projects);
+        const doneCount = db.prepare(`SELECT COUNT(*) as cnt FROM tasks WHERE workdir=? AND status='done'`).get(workdir);
+        openclawNotify.notify(`🎉 **Auto Mode Complete**: ${proj.name}\n✅ All ${doneCount.cnt} tasks finished!`);
+        log.info(`[AutoMode] ALL DONE for project "${proj.name}" — disabling auto mode`);
+      }
+      continue;
+    }
+    
+    // Move backlog tasks to todo (which triggers BMAD chain expansion in processQueue)
+    for (const task of backlogTasks) {
+      db.prepare(`UPDATE tasks SET status='todo', updated_at=datetime('now') WHERE id=?`).run(task.id);
+      log.info(`[AutoMode] Moved to todo: "${task.title}" (${task.id})`);
+    }
+    
+    if (backlogTasks.length) {
+      log.info(`[AutoMode] ${proj.name}: moved ${backlogTasks.length} tasks from backlog → todo (${currentActive + backlogTasks.length}/${AUTO_MODE_CONCURRENCY} active)`);
+      // Notify connected clients
+      wss.clients.forEach(ws => { try { ws.send(JSON.stringify({ type: 'tasks-changed' })); } catch {} });
+    }
+  }
+  
+  // Trigger processQueue to pick up the newly moved tasks
+  setImmediate(processQueue);
+}
+
+// Run auto mode check every 30 seconds
+setInterval(autoModeProcess, 30000);
+
 // ── Periodic Progress Summary via OpenClaw (every 2 hours) ──
 setInterval(() => {
   try {
@@ -3870,14 +3953,26 @@ app.post('/api/projects/reorder', (req, res) => {
   res.json({ ok: true });
 });
 app.patch('/api/projects/:id', (req,res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error:'name required' });
+  const { name, autoMode } = req.body;
   const projects = loadProjects();
   const p = projects.find(p => p.id === req.params.id);
   if (!p) return res.status(404).json({ error:'not found' });
-  p.name = name.trim();
+  if (name !== undefined) p.name = String(name).trim();
+  if (autoMode !== undefined) {
+    p.autoMode = !!autoMode;
+    if (p.autoMode) {
+      p.autoModeStartedAt = new Date().toISOString();
+      log.info(`[AutoMode] ENABLED for project "${p.name}" (${p.workdir})`);
+      openclawNotify.notify(`⚡ **Auto Mode Enabled**: ${p.name}\nTasks will be processed automatically, 5 at a time.`);
+    } else {
+      delete p.autoModeStartedAt;
+      log.info(`[AutoMode] DISABLED for project "${p.name}"`);
+      openclawNotify.notify(`⏸️ **Auto Mode Disabled**: ${p.name}`);
+    }
+  }
   saveProjects(projects);
-  res.json({ ok:true });
+  if (autoMode) setImmediate(autoModeProcess); // kick off immediately
+  res.json({ ok:true, autoMode: !!p.autoMode });
 });
 
 app.delete('/api/projects/:id', (req,res) => {
