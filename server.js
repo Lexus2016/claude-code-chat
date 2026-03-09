@@ -21,6 +21,7 @@ const TelegramBot = require('./telegram-bot');
 const TunnelManager = require('./tunnel-manager');
 // Task 17: OpenClaw bridge — external event forwarding and REST API helpers
 const openclawBridge = require('./openclaw-bridge');
+const openclawNotify = require('./openclaw-notify');
 
 // ─── Load .env file (no external dependency needed) ───────────────────────
 {
@@ -641,6 +642,7 @@ async function startTask(task) {
       broadcastToSession(sessionId, { type: 'task_retrying', taskId: task.id, title: task.title, prompt, retryCount, tabId: sessionId });
     } else {
       broadcastToSession(sessionId, { type: 'task_started', taskId: task.id, title: task.title, prompt, tabId: sessionId });
+      openclawNotify.taskStarted(task);
     }
     // Task 10: Inject BMAD agent skill context for scheduled tasks.
     // If the task description contains a <!-- bmad-skills: [...] --> annotation,
@@ -769,6 +771,7 @@ async function startTask(task) {
             duration: Date.now() - _taskStartedAt,
             workdir: task.workdir || null,
           });
+          openclawNotify.taskCompleted(task, Date.now() - _taskStartedAt);
         } else if (task.chain_id && (task.task_retry_count || 0) < MAX_CHAIN_RETRIES) {
           // 🔄 Auto-retry for chain tasks — don't give up on first failure
           const reason = isRateLimited ? 'rate_limited' : 'agent_incomplete';
@@ -822,6 +825,7 @@ async function startTask(task) {
             duration: Date.now() - _taskStartedAt,
             workdir: task.workdir || null,
           });
+          openclawNotify.taskFailed(task, reason);
           // Cascade cancel of dependents happens in next processQueue() run
         }
       } else {
@@ -1172,6 +1176,37 @@ function processQueue() {
 // Run every 15s (fast enough to pick up unblocked tasks promptly,
 // light enough to be negligible — just two SELECT queries on SQLite)
 setInterval(processQueue, 15000);
+
+// ── Periodic Progress Summary via OpenClaw (every 2 hours) ──
+setInterval(() => {
+  try {
+    const allTasks = db.prepare(`SELECT * FROM tasks`).all();
+    // Group by workdir (project)
+    const byProject = {};
+    for (const t of allTasks) {
+      const proj = t.workdir || 'default';
+      if (!byProject[proj]) byProject[proj] = [];
+      byProject[proj].push(t);
+    }
+    for (const [projPath, tasks] of Object.entries(byProject)) {
+      const projName = require('path').basename(projPath);
+      const backlog = tasks.filter(t => t.status === 'backlog').length;
+      const todo = tasks.filter(t => t.status === 'todo').length;
+      const active = tasks.filter(t => t.status !== 'backlog' && t.status !== 'todo' && t.status !== 'done' && t.status !== 'cancelled').length;
+      const done = tasks.filter(t => t.status === 'done').length;
+      const total = tasks.filter(t => t.status !== 'cancelled').length;
+      // Recently completed (last 2 hours)
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      const recentlyCompleted = tasks
+        .filter(t => t.status === 'done' && t.updated_at > twoHoursAgo)
+        .map(t => t.title);
+      if (active > 0 || recentlyCompleted.length > 0) {
+        openclawNotify.progressSummary(projName, { backlog, todo, active, done, total, recentlyCompleted });
+      }
+    }
+  } catch (e) { log.error('[progress-summary]', { error: e.message }); }
+}, 2 * 60 * 60 * 1000); // every 2 hours
+
 // Kick off on startup — smart recovery for in_progress tasks
 setTimeout(() => {
   const stuck = db.prepare(`SELECT * FROM tasks WHERE status='in_progress'`).all();
