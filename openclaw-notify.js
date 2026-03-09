@@ -6,7 +6,7 @@
 const { execFile } = require('child_process');
 
 const NOTIFY_ENABLED = process.env.OPENCLAW_NOTIFY !== 'false';
-const DISCORD_CHANNEL = process.env.OPENCLAW_NOTIFY_CHANNEL || '1479520243385765888'; // Claude Studio thread
+const DISCORD_CHANNEL = process.env.OPENCLAW_NOTIFY_CHANNEL || '1479520243385765888';
 
 function notify(text) {
   if (!NOTIFY_ENABLED) return;
@@ -24,22 +24,26 @@ function notify(text) {
   }
 }
 
-function taskStarted(task) {
+function _projectTag(projectName) {
+  return projectName ? `**[${projectName}]** ` : '';
+}
+
+function taskStarted(task, projectName) {
   const model = task.model || 'sonnet';
   const phase = (task.notes || '').match(/\[bmad-phase:(\w+)\]/)?.[1] || '';
   const phaseLabel = phase ? ` → ${phase.replace('bmad_', '').toUpperCase()}` : '';
-  notify(`🚀 **Task Started**${phaseLabel}: ${task.title}\n📁 Model: ${model}`);
+  notify(`🚀 ${_projectTag(projectName)}Task Started${phaseLabel}: ${task.title}\nModel: ${model}`);
 }
 
-function taskCompleted(task, durationMs) {
+function taskCompleted(task, durationMs, projectName) {
   const mins = Math.round((durationMs || 0) / 60000);
   const phase = (task.notes || '').match(/\[bmad-phase:(\w+)\]/)?.[1] || '';
   const phaseLabel = phase ? ` (${phase.replace('bmad_', '')})` : '';
-  notify(`✅ **Task Done**${phaseLabel}: ${task.title}\n⏱️ ${mins}min`);
+  notify(`✅ ${_projectTag(projectName)}Task Done${phaseLabel}: ${task.title}\n⏱️ ${mins}min`);
 }
 
-function taskFailed(task, reason) {
-  notify(`❌ **Task Failed**: ${task.title}\n💬 ${(reason || 'Unknown error').substring(0, 200)}`);
+function taskFailed(task, reason, projectName) {
+  notify(`❌ ${_projectTag(projectName)}Task Failed: ${task.title}\n💬 ${(reason || 'Unknown error').substring(0, 200)}`);
 }
 
 function progressSummary(projectName, stats) {

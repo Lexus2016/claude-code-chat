@@ -642,7 +642,7 @@ async function startTask(task) {
       broadcastToSession(sessionId, { type: 'task_retrying', taskId: task.id, title: task.title, prompt, retryCount, tabId: sessionId });
     } else {
       broadcastToSession(sessionId, { type: 'task_started', taskId: task.id, title: task.title, prompt, tabId: sessionId });
-      openclawNotify.taskStarted(task);
+      openclawNotify.taskStarted(task, getProjectName(task.workdir));
     }
     // Task 10: Inject BMAD agent skill context for scheduled tasks.
     // If the task description contains a <!-- bmad-skills: [...] --> annotation,
@@ -771,7 +771,7 @@ async function startTask(task) {
             duration: Date.now() - _taskStartedAt,
             workdir: task.workdir || null,
           });
-          openclawNotify.taskCompleted(task, Date.now() - _taskStartedAt);
+          openclawNotify.taskCompleted(task, Date.now() - _taskStartedAt, getProjectName(task.workdir));
         } else if (task.chain_id && (task.task_retry_count || 0) < MAX_CHAIN_RETRIES) {
           // 🔄 Auto-retry for chain tasks — don't give up on first failure
           const reason = isRateLimited ? 'rate_limited' : 'agent_incomplete';
@@ -825,7 +825,7 @@ async function startTask(task) {
             duration: Date.now() - _taskStartedAt,
             workdir: task.workdir || null,
           });
-          openclawNotify.taskFailed(task, reason);
+          openclawNotify.taskFailed(task, reason, getProjectName(task.workdir));
           // Cascade cancel of dependents happens in next processQueue() run
         }
       } else {
@@ -1985,6 +1985,7 @@ async function classifyTask(userMessage, currentSkills, config, workdir) {
 // PROJECTS
 // ============================================
 function loadProjects() { try { return JSON.parse(fs.readFileSync(PROJECTS_FILE, 'utf-8')); } catch { return []; } }
+function getProjectName(workdir) { if(!workdir) return ''; const p = loadProjects().find(p => p.workdir === workdir); return p?.name || path.basename(workdir); }
 function saveProjects(p) { const d=path.dirname(PROJECTS_FILE); if(!fs.existsSync(d)) fs.mkdirSync(d,{recursive:true}); fs.writeFileSync(PROJECTS_FILE, JSON.stringify(p, null, 2)); }
 
 /**
