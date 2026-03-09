@@ -262,14 +262,14 @@ textarea.inp{ resize:vertical; min-height:80px; }
 /* ─── Chat history panel in modal ─── */
 .chat-panel{ border:1px solid var(--border); border-radius:var(--r-md); overflow:hidden; }
 .chat-panel-hd{ padding:8px 14px; background:var(--s2); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
-.chat-panel-body{ max-height:280px; overflow-y:auto; }
+.chat-panel-body{ overflow-y:auto; }
 .chat-msg{ padding:9px 14px; border-bottom:1px solid var(--border); }
 .chat-msg:last-child{ border-bottom:none; }
 .chat-role{ font-size:10px; font-weight:700; text-transform:uppercase; margin-bottom:3px; letter-spacing:.5px; }
 .chat-role.user{ color:var(--blue); }
 .chat-role.assistant{ color:var(--accent2); }
 .chat-role.tool{ color:var(--orange); }
-.chat-text{ font-size:12px; line-height:1.5; color:var(--text); white-space:pre-wrap; word-break:break-word; max-height:100px; overflow:hidden; }
+.chat-text{ font-size:12px; line-height:1.5; color:var(--text); white-space:pre-wrap; word-break:break-word; }
 .chat-empty{ padding:20px; text-align:center; color:var(--muted); font-size:12px; }
 .sess-info{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
 .mono-tag{ font-family:monospace; font-size:11px; color:var(--muted); background:var(--s3); padding:2px 7px; border-radius:4px; cursor:pointer; border:1px solid var(--border); transition:border-color .1s; }
