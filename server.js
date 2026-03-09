@@ -3342,12 +3342,30 @@ function parseSprintStatus(filePath) {
 app.get('/api/bmad/docs', (req, res) => {
   const workdir = req.query.workdir || WORKDIR;
   const docs = [];
+  const baseName = path.basename(workdir);
+  const homeDir = os.homedir();
+  const ocWorkspace = path.join(homeDir, '.openclaw', 'workspace');
+  // Scan dirs: project workdir + openclaw workspace variations
   const scanDirs = [
     { dir: path.join(workdir, '_bmad-output', 'planning-artifacts'), category: 'Planning' },
     { dir: path.join(workdir, '_bmad-output', 'implementation-artifacts'), category: 'Implementation' },
+    { dir: path.join(workdir, '_bmad-output', 'analysis'), category: 'Analysis' },
     { dir: path.join(workdir, '_bmad-output'), category: 'Output' },
     { dir: path.join(workdir, 'docs'), category: 'Project Docs' },
   ];
+  // Also check openclaw workspace variations
+  const variations = [baseName, baseName + '_app', baseName.replace(/-/g, '_'), baseName.replace(/_/g, '-')];
+  for (const v of variations) {
+    const ocDir = path.join(ocWorkspace, v, '_bmad-output');
+    if (fs.existsSync(ocDir)) {
+      scanDirs.push({ dir: path.join(ocDir, 'planning-artifacts'), category: 'Planning' });
+      scanDirs.push({ dir: path.join(ocDir, 'implementation-artifacts'), category: 'Implementation' });
+      scanDirs.push({ dir: path.join(ocDir, 'analysis'), category: 'Analysis' });
+      scanDirs.push({ dir: ocDir, category: 'Output' });
+      break; // found it
+    }
+  }
+  const seen = new Set();
   for (const { dir, category } of scanDirs) {
     try {
       if (!fs.existsSync(dir)) continue;
@@ -3356,6 +3374,8 @@ app.get('/api/bmad/docs', (req, res) => {
         const stat = fs.statSync(fp);
         if (!stat.isFile()) continue;
         if (!['.md', '.yaml', '.yml', '.txt'].includes(path.extname(f).toLowerCase())) continue;
+        if (seen.has(f)) continue; // deduplicate
+        seen.add(f);
         docs.push({
           name: f,
           category,
@@ -3376,7 +3396,7 @@ app.get('/api/bmad/doc', (req, res) => {
   if (!filePath) return res.status(400).json({ error: 'path required' });
   // Security: only allow reading from _bmad-output/ or docs/ within a project
   const normalized = path.resolve(filePath);
-  if (!normalized.includes('_bmad-output') && !normalized.includes('/docs/') && !normalized.includes('_bmad/')) {
+  if (!normalized.includes('_bmad-output') && !normalized.includes('/docs/') && !normalized.includes('_bmad/') && !normalized.includes('.openclaw/workspace')) {
     return res.status(403).json({ error: 'Access denied — only BMAD output files allowed' });
   }
   try {
