@@ -75,7 +75,10 @@ class ClaudeSSH {
     if (sessionId && typeof sessionId === 'string' && /^[a-f0-9-]+$/i.test(sessionId)) args.push('--resume', sessionId);
     if (model)             args.push('--model', MODEL_MAP[model] || model);
     if (maxTurns)          args.push('--max-turns', String(maxTurns));
-    if (systemPrompt)      args.push('--system-prompt', systemPrompt);
+    // Match local CLI behavior: a resumed Claude session already contains the
+    // original system prompt. Re-sending it changes the session envelope and
+    // can invalidate thinking block signatures on subsequent turns.
+    if (systemPrompt && !sessionId) args.push('--system-prompt', systemPrompt);
     if (allowedTools?.length) args.push('--allowedTools', ...allowedTools);
     args.push('--dangerously-skip-permissions');
     // --verbose is required alongside --output-format stream-json since CLI ≥ 1.0.x

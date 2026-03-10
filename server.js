@@ -1773,7 +1773,7 @@ async function runCliSingle(p) {
       const notice = `\n\n⚠️ **Agent did not complete** after ${MAX_AUTO_CONTINUES} auto-continues. Continue manually if needed.\n\n`;
       fullText += notice;
       { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
-      try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
+      try { ws.send(JSON.stringify({ type:'text', text: notice, session_restart_available: true, sessionId, ...(tabId ? { tabId } : {}) })); } catch {}
       break;
     }
 
@@ -1822,8 +1822,9 @@ async function runSshSingle(p) {
 
   const runOnce = (runPrompt, resumeId) => new Promise((resolve) => {
     let resultData = null;
+    let errorText = '';
     let _done = false;
-    const _finish = (sid) => { if (!_done) { _done = true; resolve({ resultData, sid }); } };
+    const _finish = (sid) => { if (!_done) { _done = true; resolve({ resultData, sid, errorText }); } };
 
     ssh.send({ prompt: runPrompt, sessionId: resumeId, model, maxTurns: effectiveMaxTurns, systemPrompt: sp, allowedTools: tools, abortController })
       .onText(t => {
@@ -1847,6 +1848,7 @@ async function runSshSingle(p) {
       .onRateLimit(info => { ws.send(JSON.stringify({ type:'rate_limit', info, ...(tabId ? { tabId } : {}) })); })
       .onResult(r => { resultData = r; })
       .onError(err => {
+        errorText += err;
         try { ws.send(JSON.stringify({ type:'error', error:err.substring(0,500), ...(tabId ? { tabId } : {}) })); } catch {}
       })
       .onDone(sid => {
@@ -1857,9 +1859,22 @@ async function runSshSingle(p) {
 
   let lastResult = null;
   while (true) {
-    const { resultData } = await runOnce(currentPrompt, newCid);
+    const { resultData, errorText } = await runOnce(currentPrompt, newCid);
     lastResult = resultData;
     if (resultData?.subtype === 'success') break;
+    if (errorText && /Invalid signature in thinking block/i.test(errorText)) {
+      log.warn('ssh-thinking-block-signature-error', { sessionId, oldCid: newCid });
+      const notice = '\n\n⚠️ **Session reset** — remote thinking block signature expired, starting a fresh session...\n\n';
+      fullText += notice;
+      { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
+      try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
+      newCid = null;
+      try { stmts.updateClaudeId.run(null, sessionId); } catch {}
+      currentPrompt = prompt;
+      continueCount++;
+      if (continueCount >= MAX_AUTO_CONTINUES) break;
+      continue;
+    }
     if (resultData?.subtype === 'error_max_budget_usd') {
       const notice = '\n\n⚠️ **Budget limit reached** — agent stopped.\n\n';
       fullText += notice;
@@ -1872,7 +1887,7 @@ async function runSshSingle(p) {
       const notice = `\n\n⚠️ **Agent did not complete** after ${MAX_AUTO_CONTINUES} auto-continues.\n\n`;
       fullText += notice;
       { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
-      try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
+      try { ws.send(JSON.stringify({ type:'text', text: notice, session_restart_available: true, sessionId, ...(tabId ? { tabId } : {}) })); } catch {}
       break;
     }
     continueCount++;
@@ -4279,6 +4294,34 @@ wss.on('connection', (ws) => {
         if (legacyItem) legacyItem.text = text;
         ws.send(JSON.stringify({ type: 'queue_edited', queueId }));
       }
+      return;
+    }
+
+    // ─── Session restart (manual recovery from broken sessions) ───────────
+    if (msg.type === 'restart_session') {
+      const sessionId = msg.sessionId || msg.tabId;
+      if (!sessionId) return;
+
+      const session = stmts.getSession.get(sessionId);
+      if (!session) {
+        ws.send(JSON.stringify({ type: 'error', error: 'Session not found', tabId: sessionId }));
+        return;
+      }
+
+      // Get user messages from the session to transfer context
+      const userMessages = stmts.getMsgsLite.all(sessionId).filter(m => m.role === 'user');
+
+      // Clear the broken Claude session ID to start fresh
+      try { stmts.updateClaudeId.run(null, sessionId); } catch {}
+
+      // Notify client that session was successfully reset and ready for new chat
+      log.info('session restart cleared claude_session_id', { sessionId, userMessages: userMessages.length });
+      ws.send(JSON.stringify({
+        type: 'session_restart_done',
+        sessionId,
+        tabId: sessionId,
+        userMessages: userMessages.length > 0
+      }));
       return;
     }
 

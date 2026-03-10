@@ -2238,6 +2238,10 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
     </div>
     <div class="fpv-toolbar">
       <span class="fpv-ext" id="fpvExt"></span>
+      <button class="fpv-btn" id="fpvCopyImgBtn" onclick="fpvCopyImage()" style="display:none" data-i18n-title="fpv.copy_img.title" title="Скопіювати зображення">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        <span data-i18n="fpv.copy_img">Копіювати</span>
+      </button>
       <button class="fpv-btn" onclick="fpvDownload()" data-i18n-title="fpv.download.title" title="Завантажити файл">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span data-i18n="fpv.download">Завантажити</span>
@@ -2545,8 +2549,8 @@ const TRANSLATIONS = {
     'auto.title.on':'⚡ Auto-Skills: увімкнено — клік для вимкнення',
     'auto.title.off':'⚡ Auto-Skills: вимкнено — клік для увімкнення',
     'status.connected':'Підключено','status.generating':'Генерація…','status.thinking':'Обдумування...','status.processing':'Обробка...','status.classifying':'⚡ Визначення спеціалістів...','status.reconnecting':'Перепідключення…','status.stopped':'Зупинено','status.error':'Помилка',
-    'fpv.download':'Завантажити','fpv.download.title':'Завантажити файл','fpv.share':'Поділитись','fpv.share.title':'Поділитись / Скопіювати посилання','fpv.binary':'Бінарний файл — перегляд недоступний','fpv.img_error':'Помилка завантаження зображення','fpv.load_error':'Помилка завантаження файлу',
-    'toast.no_connection':'Немає з\'єднання','toast.sess_not_found':'Сесію не знайдено','toast.cfg_load_err':'Помилка завантаження конфігурації','toast.skill_uploaded':'✓ Скіл завантажено','toast.link_copied':'✓ Посилання скопійовано','toast.select_dir':'Виберіть директорію','toast.link_prompt':'Скопіюйте посилання:',
+    'fpv.download':'Завантажити','fpv.download.title':'Завантажити файл','fpv.copy_img':'Копіювати','fpv.copy_img.title':'Скопіювати зображення в буфер','fpv.share':'Поділитись','fpv.share.title':'Поділитись / Скопіювати посилання','fpv.binary':'Бінарний файл — перегляд недоступний','fpv.img_error':'Помилка завантаження зображення','fpv.load_error':'Помилка завантаження файлу',
+    'toast.no_connection':'Немає з\'єднання','toast.sess_not_found':'Сесію не знайдено','toast.cfg_load_err':'Помилка завантаження конфігурації','toast.skill_uploaded':'✓ Скіл завантажено','toast.link_copied':'✓ Посилання скопійовано','toast.img_copied':'✓ Зображення скопійовано','toast.select_dir':'Виберіть директорію','toast.link_prompt':'Скопіюйте посилання:',
     'at.no_project':'Оберіть проект, щоб шукати файли','at.searching':'Пошук...','at.search_err':'Помилка пошуку','at.no_files':'Файлів не знайдено','ssh.search':'Пошук SSH-сервера...','ssh.no_hosts':'SSH-сервери не налаштовано',
     'dir.this_dir':'. (ця директорія)','dir.no_subdirs':'Немає підпапок','dir.drives':'💻 Всі диски',
     'toast.read_err':'Не вдалося прочитати: ','toast.err_prefix':'Помилка: ','dir.proj_name':'Назва проекту (авто якщо порожньо)',
@@ -2613,7 +2617,7 @@ const TRANSLATIONS = {
     'ssh.modal.tip':'💡 SSH ключ: без пароля або доданий у ssh-agent. Перше підключення автоматично підтвердить fingerprint. Пароль зберігається у відкритому вигляді — рекомендуємо використовувати ключ.',
     'ssh.modal.test':'🔌 Тест','ssh.modal.cancel':'Скасувати',
     'ssh.testing':'Перевірка...','ssh.connecting':'⏳ Підключення...','ssh.conn_err':'✗ Помилка підключення',
-    'ssh.err.no_host':'Вкажіть хост','ssh.err.no_label':'Вкажіть назву','ssh.err':'Помилка',
+    'ssh.err.no_host':'Вкажіть хост','ssh.err.no_label':'Вкажіть назву','ssh.err.no_password':'Вкажіть пароль','ssh.err.reenter_password_test':'Щоб протестувати password-host, введіть пароль ще раз','ssh.err':'Помилка',
     'ssh.saved':'✓ Хост "{name}" збережено','ssh.updated':'✓ Хост "{name}" оновлено',
     'ssh.select.ph':'— оберіть хост —','ssh.sel.err':'Оберіть хост',
     'sec.tunnel':'Remote Access','tn.hint':'Відкрийте доступ до Studio через інтернет.',
@@ -2729,8 +2733,8 @@ const TRANSLATIONS = {
     'auto.title.on':'⚡ Auto-Skills: enabled — click to disable',
     'auto.title.off':'⚡ Auto-Skills: disabled — click to enable',
     'status.connected':'Connected','status.generating':'Generating…','status.thinking':'Thinking...','status.processing':'Processing...','status.classifying':'⚡ Classifying specialists...','status.reconnecting':'Reconnecting…','status.stopped':'Stopped','status.error':'Error',
-    'fpv.download':'Download','fpv.download.title':'Download file','fpv.share':'Share','fpv.share.title':'Share / Copy link','fpv.binary':'Binary file — preview not available','fpv.img_error':'Image load error','fpv.load_error':'File load error',
-    'toast.no_connection':'No connection','toast.sess_not_found':'Session not found','toast.cfg_load_err':'Config load error','toast.skill_uploaded':'✓ Skill uploaded','toast.link_copied':'✓ Link copied','toast.select_dir':'Select a directory','toast.link_prompt':'Copy link:',
+    'fpv.download':'Download','fpv.download.title':'Download file','fpv.copy_img':'Copy','fpv.copy_img.title':'Copy image to clipboard','fpv.share':'Share','fpv.share.title':'Share / Copy link','fpv.binary':'Binary file — preview not available','fpv.img_error':'Image load error','fpv.load_error':'File load error',
+    'toast.no_connection':'No connection','toast.sess_not_found':'Session not found','toast.cfg_load_err':'Config load error','toast.skill_uploaded':'✓ Skill uploaded','toast.link_copied':'✓ Link copied','toast.img_copied':'✓ Image copied','toast.select_dir':'Select a directory','toast.link_prompt':'Copy link:',
     'at.no_project':'Select a project to search files','at.searching':'Searching...','at.search_err':'Search error','at.no_files':'No files found','ssh.search':'Search SSH server...','ssh.no_hosts':'No SSH servers configured',
     'dir.this_dir':'. (this directory)','dir.no_subdirs':'No subdirectories','dir.drives':'💻 All Drives',
     'toast.read_err':'Failed to read: ','toast.err_prefix':'Error: ','dir.proj_name':'Project name (auto if empty)',
@@ -2797,7 +2801,7 @@ const TRANSLATIONS = {
     'ssh.modal.tip':'💡 SSH key: no passphrase or added to ssh-agent. First connection will auto-confirm the fingerprint. Password is stored in plain text — we recommend using a key.',
     'ssh.modal.test':'🔌 Test','ssh.modal.cancel':'Cancel',
     'ssh.testing':'Testing...','ssh.connecting':'⏳ Connecting...','ssh.conn_err':'✗ Connection error',
-    'ssh.err.no_host':'Enter host','ssh.err.no_label':'Enter name','ssh.err':'Error',
+    'ssh.err.no_host':'Enter host','ssh.err.no_label':'Enter name','ssh.err.no_password':'Enter password','ssh.err.reenter_password_test':'Re-enter the password to test this password-based host','ssh.err':'Error',
     'ssh.saved':'✓ Host "{name}" saved','ssh.updated':'✓ Host "{name}" updated',
     'ssh.select.ph':'— select host —','ssh.sel.err':'Select a host',
     'sec.tunnel':'Remote Access','tn.hint':'Expose Studio to the internet.',
@@ -2913,8 +2917,8 @@ const TRANSLATIONS = {
     'auto.title.on':'⚡ Auto-Skills: включено — клик для отключения',
     'auto.title.off':'⚡ Auto-Skills: отключено — клик для включения',
     'status.connected':'Подключено','status.generating':'Генерация…','status.thinking':'Обдумывание...','status.processing':'Обработка...','status.classifying':'⚡ Определение специалистов...','status.reconnecting':'Переподключение…','status.stopped':'Остановлено','status.error':'Ошибка',
-    'fpv.download':'Скачать','fpv.download.title':'Скачать файл','fpv.share':'Поделиться','fpv.share.title':'Поделиться / Скопировать ссылку','fpv.binary':'Бинарный файл — предпросмотр недоступен','fpv.img_error':'Ошибка загрузки изображения','fpv.load_error':'Ошибка загрузки файла',
-    'toast.no_connection':'Нет соединения','toast.sess_not_found':'Сессия не найдена','toast.cfg_load_err':'Ошибка загрузки конфигурации','toast.skill_uploaded':'✓ Навык загружен','toast.link_copied':'✓ Ссылка скопирована','toast.select_dir':'Выберите директорию','toast.link_prompt':'Скопируйте ссылку:',
+    'fpv.download':'Скачать','fpv.download.title':'Скачать файл','fpv.copy_img':'Копировать','fpv.copy_img.title':'Скопировать изображение в буфер','fpv.share':'Поделиться','fpv.share.title':'Поделиться / Скопировать ссылку','fpv.binary':'Бинарный файл — предпросмотр недоступен','fpv.img_error':'Ошибка загрузки изображения','fpv.load_error':'Ошибка загрузки файла',
+    'toast.no_connection':'Нет соединения','toast.sess_not_found':'Сессия не найдена','toast.cfg_load_err':'Ошибка загрузки конфигурации','toast.skill_uploaded':'✓ Навык загружен','toast.link_copied':'✓ Ссылка скопирована','toast.img_copied':'✓ Изображение скопировано','toast.select_dir':'Выберите директорию','toast.link_prompt':'Скопируйте ссылку:',
     'at.no_project':'Выберите проект для поиска файлов','at.searching':'Поиск...','at.search_err':'Ошибка поиска','at.no_files':'Файлов не найдено','ssh.search':'Поиск SSH-сервера...','ssh.no_hosts':'SSH-серверы не настроены',
     'dir.this_dir':'. (эта директория)','dir.no_subdirs':'Нет подпапок','dir.drives':'💻 Все диски',
     'toast.read_err':'Не удалось прочитать: ','toast.err_prefix':'Ошибка: ','dir.proj_name':'Название проекта (авто если пусто)',
@@ -2981,7 +2985,7 @@ const TRANSLATIONS = {
     'ssh.modal.tip':'💡 SSH ключ: без пароля или добавлен в ssh-agent. Первое подключение автоматически подтвердит fingerprint. Пароль хранится в открытом виде — рекомендуем использовать ключ.',
     'ssh.modal.test':'🔌 Тест','ssh.modal.cancel':'Отмена',
     'ssh.testing':'Проверка...','ssh.connecting':'⏳ Подключение...','ssh.conn_err':'✗ Ошибка подключения',
-    'ssh.err.no_host':'Укажите хост','ssh.err.no_label':'Укажите имя','ssh.err':'Ошибка',
+    'ssh.err.no_host':'Укажите хост','ssh.err.no_label':'Укажите имя','ssh.err.no_password':'Укажите пароль','ssh.err.reenter_password_test':'Чтобы протестировать password-host, введите пароль заново','ssh.err':'Ошибка',
     'ssh.saved':'✓ Хост "{name}" сохранён','ssh.updated':'✓ Хост "{name}" обновлён',
     'ssh.select.ph':'— выберите хост —','ssh.sel.err':'Выберите хост',
     'sec.tunnel':'Remote Access','tn.hint':'Откройте доступ к Studio через интернет.',
@@ -3543,6 +3547,10 @@ function handleWsMsg(d) {
 
     case 'text':
       getTS(tabId).agentStatus = ''; // text has arrived — status no longer relevant (clear even for background tabs to prevent stale spinner on tab switch)
+      // Track session_restart_available flag for showing restart button on done
+      if (d.session_restart_available) {
+        getTS(tabId)._sessionRestartAvailable = d.sessionId || tabId;
+      }
       if (!isVisible) {
         // Accumulate text for background tabs — restored when user switches back
         // catchUp replaces accumulated text (full replay from server); normal chunks append
@@ -3694,6 +3702,23 @@ function handleWsMsg(d) {
         const _planText = streaming.txt; // Save before clearing
         _maybeAttachExecPlanBtn(streaming.el, _planText);
 
+        // ─── Session Restart: Show restart button if session failed ────────────
+        const _restartSessionId = getTS(tabId)._sessionRestartAvailable;
+        if (_restartSessionId && streaming.el) {
+          const restartBtn = document.createElement('button');
+          restartBtn.className = 'session-restart-btn';
+          restartBtn.innerHTML = '🔄 Restart Session';
+          restartBtn.style.cssText = 'margin-top:12px;padding:8px 16px;background:var(--bg,#1a1a2e);border:1px solid var(--accent,#00d4aa);color:var(--accent,#00d4aa);border-radius:6px;cursor:pointer;font-size:14px;';
+          restartBtn.onclick = () => {
+            restartBtn.disabled = true;
+            restartBtn.textContent = 'Restarting...';
+            ws.send(JSON.stringify({ type: 'restart_session', sessionId: _restartSessionId }));
+          };
+          const footer = streaming.el.querySelector('.msg-status-footer');
+          if (footer) streaming.el.insertBefore(restartBtn, footer); else streaming.el.appendChild(restartBtn);
+          delete getTS(tabId)._sessionRestartAvailable;
+        }
+
         // ─── Text-parsing fallback for automatic plan completion detection ───
         // When in planning mode and response looks done, text-parsing fallback for automatic mode switching
         if (curMode === 'planning' && streaming.el && _planText) {
@@ -3740,6 +3765,17 @@ function handleWsMsg(d) {
       else renderProjects(); // background: remove busy dot from project
       loadHist();
       if (tabId === activeTabId) updateSessBar();
+      break;
+
+    case 'session_restart_done':
+      // Session was successfully reset - remove restart button and show success
+      { const rb = msgsEl.querySelector('.session-restart-btn'); if (rb) rb.remove(); }
+      toast('✅ Session restarted - you can continue chatting', false, 3000);
+      // Reset streaming state for fresh start
+      streaming.el = null; streaming.txt = '';
+      streaming.toolCounts = {}; streaming.toolLog = [];
+      isGen = false;
+      setSendStop(false);
       break;
 
     case 'files_changed':
@@ -6655,6 +6691,26 @@ async function loadSess(id) {
       }
     }
 
+    // Restore "Restart Session" button if session broke (auto-continues exhausted)
+    const _restartSessionId = getTS(id)._sessionRestartAvailable;
+    if (_restartSessionId && !d.isChatRunning && !d.hasRunningTask) {
+      const lastAssistEl = [...msgsEl.querySelectorAll('.mw.assistant')].pop();
+      if (lastAssistEl) {
+        const restartBtn = document.createElement('button');
+        restartBtn.className = 'session-restart-btn';
+        restartBtn.innerHTML = '🔄 Restart Session';
+        restartBtn.style.cssText = 'margin-top:12px;padding:8px 16px;background:var(--bg,#1a1a2e);border:1px solid var(--accent,#00d4aa);color:var(--accent,#00d4aa);border-radius:6px;cursor:pointer;font-size:14px;';
+        restartBtn.onclick = () => {
+          restartBtn.disabled = true;
+          restartBtn.textContent = 'Restarting...';
+          ws.send(JSON.stringify({ type: 'restart_session', sessionId: _restartSessionId }));
+        };
+        const footer = lastAssistEl.querySelector('.msg-status-footer');
+        if (footer) lastAssistEl.insertBefore(restartBtn, footer); else lastAssistEl.appendChild(restartBtn);
+        delete getTS(id)._sessionRestartAvailable;
+      }
+    }
+
     // Restore chain progress widget(s) from server-side task data
     if (d.chains) {
       for (const [chainId, tasks] of Object.entries(d.chains)) {
@@ -7836,12 +7892,13 @@ async function loadFiles(dir = '') {
   } catch {}
 }
 
-let _fpvPath = '', _fpvName = '';
+let _fpvPath = '', _fpvName = '', _fpvIsImg = false;
 
 function closeFpv() {
   $i('filePreviewModal').classList.add('hidden');
   $i('fpvBody').innerHTML = '';
-  _fpvPath = ''; _fpvName = '';
+  _fpvPath = ''; _fpvName = ''; _fpvIsImg = false;
+  $i('fpvCopyImgBtn').style.display = 'none';
 }
 
 async function openFilePreview(relPath, name) {
@@ -7863,7 +7920,11 @@ async function openFilePreview(relPath, name) {
                    '.json','.yaml','.yml','.toml','.ini','.cfg','.env','.txt','.sh','.bash',
                    '.zsh','.sql','.graphql','.xml','.vue','.svelte','.log','.pine','.lock'];
 
-  if (imgExts.includes(ext)) {
+  // Show/hide copy image button
+  _fpvIsImg = imgExts.includes(ext);
+  $i('fpvCopyImgBtn').style.display = _fpvIsImg ? '' : 'none';
+
+  if (_fpvIsImg) {
     body.innerHTML = `<img src="${escH(rawUrl)}" alt="${escH(_fpvName)}" onerror="this.alt=t('fpv.img_error')">`;
     return;
   }
@@ -7907,6 +7968,21 @@ async function fpvShare() {
     toast(t('toast.link_copied'));
   } catch {
     prompt(t('toast.link_prompt'), url);
+  }
+}
+
+async function fpvCopyImage() {
+  if (!_fpvPath || !_fpvIsImg) return;
+  const rawUrl = `/api/files/raw?${_filesQS(_fpvPath)}`;
+  try {
+    const response = await fetch(rawUrl);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const blob = await response.blob();
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    toast(t('toast.img_copied'));
+  } catch (e) {
+    console.error('Failed to copy image:', e);
+    toast(t('toast.err_prefix') + ' ' + t('fpv.copy_img'));
   }
 }
 
@@ -8543,8 +8619,10 @@ async function editRemoteHost(id) {
   $i('sshHostPort').value = h.port || 22;
   $i('sshHostTestResult').textContent = '';
   $i('sshHostTestResult').className = 'rh-test-result';
-  // Determine auth type: if host has password marker use pwd mode, otherwise key mode
-  const hasPwd = h.password && h.password !== '***' && h.password !== '';
+  // API masks saved passwords as "***", so any non-empty password field means
+  // "this host uses password auth". Treating "***" as empty flips the form to
+  // key mode and the next save clears the stored password.
+  const hasPwd = !!h.password;
   setAuthType(hasPwd ? 'pwd' : 'key');
   $i('sshHostKey').value = hasPwd ? '' : (h.sshKeyPath || '');
   $i('sshHostPassword').value = hasPwd ? '' : '';  // never pre-fill password for security
@@ -8558,7 +8636,13 @@ async function testNewSshHost() {
   const usePwd = $i('sshAuthBtnPwd').classList.contains('active');
   const sshKeyPath = usePwd ? '' : $i('sshHostKey').value.trim();
   const password = usePwd ? $i('sshHostPassword').value : '';
+  const existingHost = _editingHostId ? remoteHosts.find(x => x.id === _editingHostId) : null;
   if (!host) { toast(t('ssh.err.no_host'), true); return; }
+  if (usePwd && !password) {
+    const msg = existingHost?.password ? t('ssh.err.reenter_password_test') : t('ssh.err.no_password');
+    toast(msg, true);
+    return;
+  }
   const res = $i('sshHostTestResult');
   res.textContent = t('ssh.connecting'); res.className = 'rh-test-result';
   try {
@@ -8586,10 +8670,24 @@ async function saveNewSshHost() {
   if (!host) { toast(t('ssh.err.no_host'), true); return; }
   const isEdit = !!_editingHostId;
   const url = isEdit ? `/api/remote-hosts/${_editingHostId}` : '/api/remote-hosts';
+  const existingHost = isEdit ? remoteHosts.find(x => x.id === _editingHostId) : null;
+  if (usePwd && !password && !existingHost?.password) {
+    toast(t('ssh.err.no_password'), true);
+    return;
+  }
+  const payload = { label, host, port, sshKeyPath };
+  if (usePwd) {
+    // Preserve the saved password when editing a password-based host unless the
+    // user explicitly entered a replacement.
+    if (!isEdit || password !== '' || !existingHost?.password) payload.password = password;
+  } else {
+    // Switching to key mode should clear any previously stored password.
+    payload.password = '';
+  }
   const r = await fetch(url, {
     method: isEdit ? 'PUT' : 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ label, host, port, sshKeyPath, password }),
+    body: JSON.stringify(payload),
   });
   const d = await r.json();
   if (!d.ok) { toast(d.error || t('ssh.err'), true); return; }
