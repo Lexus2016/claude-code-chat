@@ -151,6 +151,9 @@ function i18nTask()    { return SERVER_I18N[getUserLang()]?.newTask    || SERVER
 // ─── Global Claude Code directory (priority: global → local) ─────────────────
 const GLOBAL_CLAUDE_DIR  = path.join(os.homedir(), '.claude');
 const GLOBAL_SKILLS_DIR  = path.join(GLOBAL_CLAUDE_DIR, 'skills');
+const GLOBAL_PLUGINS_DIR = path.join(GLOBAL_CLAUDE_DIR, 'plugins');
+const GLOBAL_PLUGIN_CACHE_DIR = path.join(GLOBAL_PLUGINS_DIR, 'cache');
+const GLOBAL_PLUGIN_MARKETPLACES_DIR = path.join(GLOBAL_PLUGINS_DIR, 'marketplaces');
 const GLOBAL_CONFIG_PATH = path.join(GLOBAL_CLAUDE_DIR, 'config.json');
 
 const claudeCli = new ClaudeCLI({ cwd: WORKDIR });
@@ -1534,6 +1537,198 @@ function loadConfig() {
   }
   return c;
 }
+
+function readJsonIfExists(filePath) {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf-8')); } catch { return null; }
+}
+
+function extractSkillUiMeta(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    let frontmatterDescription = '';
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      const descMatch = fmMatch[1].match(/^description:\s*(.+)$/m);
+      if (descMatch) frontmatterDescription = descMatch[1].trim().replace(/^["']|["']$/g, '');
+    }
+
+    const body = content
+      .replace(/^---\n[\s\S]*?\n---\n?/, '')
+      .replace(/\r/g, '');
+    const bodyLines = body.split('\n').map(line => line.trim());
+    let paragraph = '';
+    for (let i = 0; i < bodyLines.length; i++) {
+      const line = bodyLines[i];
+      if (!line || line.startsWith('#') || line.startsWith('```') || line.startsWith('|') || line.startsWith('- ') || line.startsWith('* ')) continue;
+      if (i > 0 && (bodyLines[i - 1].startsWith('#') || bodyLines[i - 1] === '')) {
+        paragraph = line;
+        break;
+      }
+      if (!paragraph) paragraph = line;
+    }
+
+    const summary = frontmatterDescription || paragraph || '';
+    return { summary: summary.slice(0, 320) };
+  } catch {
+    return { summary: '' };
+  }
+}
+
+function normalizeSkillKeyPart(value, fallback) {
+  const normalized = String(value || fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || fallback;
+}
+
+function discoverFlatSkills(dirPath, makeEntry) {
+  const out = {};
+  if (!fs.existsSync(dirPath)) return out;
+  for (const fileName of fs.readdirSync(dirPath).filter(f => f.endsWith('.md'))) {
+    const id = path.parse(fileName).name;
+    out[id] = makeEntry(fileName, id);
+  }
+  return out;
+}
+
+function addDiscoveredSkill(target, id, entry) {
+  if (!target[id]) target[id] = entry;
+}
+
+function discoverPluginSkillsFromRoot(pluginRoot, source) {
+  const out = {};
+  const manifestPath = path.join(pluginRoot, '.claude-plugin', 'plugin.json');
+  if (!fs.existsSync(manifestPath)) return out;
+  const skillsDir = path.join(pluginRoot, 'skills');
+  if (!fs.existsSync(skillsDir)) return out;
+
+  const manifest = readJsonIfExists(manifestPath) || {};
+  const pluginName = String(manifest.name || path.basename(pluginRoot) || 'plugin').trim();
+  const pluginKey = normalizeSkillKeyPart(pluginName, 'plugin');
+  const pluginVersion = typeof manifest.version === 'string' ? manifest.version.trim() : '';
+  const sourceLabel = source === 'marketplace'
+    ? 'Marketplace plugin skill'
+    : 'Installed plugin skill';
+
+  for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const skillName = entry.name;
+    const skillDir = path.join(skillsDir, skillName);
+    const skillFile = path.join(skillDir, 'SKILL.md');
+    if (!fs.existsSync(skillFile)) continue;
+    const uiMeta = extractSkillUiMeta(skillFile);
+    const skillKey = normalizeSkillKeyPart(skillName, 'skill');
+    const id = `plugin:${pluginKey}:${skillKey}`;
+    const technicalDescription = pluginVersion
+      ? `${sourceLabel} (${pluginName} v${pluginVersion})`
+      : `${sourceLabel} (${pluginName})`;
+    const tooltip = [
+      uiMeta.summary || technicalDescription,
+      technicalDescription,
+      `Skill: ${skillName}`,
+    ].join('\n\n');
+    out[id] = {
+      label: `🧩 ${pluginName}/${skillName}`,
+      shortLabel: skillName,
+      description: uiMeta.summary || technicalDescription,
+      technicalDescription,
+      tooltip,
+      file: skillFile,
+      plugin: true,
+      pluginName,
+      pluginVersion,
+      pluginRoot,
+      skillDir,
+      category: 'plugin',
+      external: true,
+      source,
+    };
+  }
+
+  return out;
+}
+
+function discoverMarketplacePluginSkills() {
+  const out = {};
+  if (!fs.existsSync(GLOBAL_PLUGIN_MARKETPLACES_DIR)) return out;
+  for (const entry of fs.readdirSync(GLOBAL_PLUGIN_MARKETPLACES_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const pluginRoot = path.join(GLOBAL_PLUGIN_MARKETPLACES_DIR, entry.name);
+    const discovered = discoverPluginSkillsFromRoot(pluginRoot, 'marketplace');
+    for (const [id, skill] of Object.entries(discovered)) addDiscoveredSkill(out, id, skill);
+  }
+  return out;
+}
+
+function discoverCachedPluginSkills() {
+  const out = {};
+  if (!fs.existsSync(GLOBAL_PLUGIN_CACHE_DIR)) return out;
+  for (const vendor of fs.readdirSync(GLOBAL_PLUGIN_CACHE_DIR, { withFileTypes: true })) {
+    if (!vendor.isDirectory()) continue;
+    const vendorDir = path.join(GLOBAL_PLUGIN_CACHE_DIR, vendor.name);
+    for (const plugin of fs.readdirSync(vendorDir, { withFileTypes: true })) {
+      if (!plugin.isDirectory()) continue;
+      const pluginDir = path.join(vendorDir, plugin.name);
+      for (const version of fs.readdirSync(pluginDir, { withFileTypes: true })) {
+        if (!version.isDirectory()) continue;
+        const pluginRoot = path.join(pluginDir, version.name);
+        const discovered = discoverPluginSkillsFromRoot(pluginRoot, 'cache');
+        for (const [id, skill] of Object.entries(discovered)) addDiscoveredSkill(out, id, skill);
+      }
+    }
+  }
+  return out;
+}
+
+function addAutoDiscoveredSkills(config) {
+  const merged = {
+    ...config,
+    skills: { ...(config.skills || {}) },
+  };
+
+  const globalSkills = discoverFlatSkills(GLOBAL_SKILLS_DIR, (fileName, id) => ({
+    label: `🌐 ${id}`,
+    description: 'Global skill (~/.claude/skills/)',
+    file: path.join(GLOBAL_SKILLS_DIR, fileName),
+    global: true,
+  }));
+  for (const [id, skill] of Object.entries(globalSkills)) addDiscoveredSkill(merged.skills, id, skill);
+
+  const localSkills = discoverFlatSkills(SKILLS_DIR, (fileName, id) => {
+    const meta = BUNDLED_SKILL_META[id] || {};
+    return {
+      label: meta.label || `📄 ${id}`,
+      description: 'Local skill',
+      file: `skills/${fileName}`,
+      ...(meta.category ? { category: meta.category } : {}),
+    };
+  });
+  for (const [id, skill] of Object.entries(localSkills)) addDiscoveredSkill(merged.skills, id, skill);
+
+  const bundledSkillsDir = path.join(__dirname, 'skills');
+  if (bundledSkillsDir !== SKILLS_DIR) {
+    const bundledSkills = discoverFlatSkills(bundledSkillsDir, (fileName, id) => {
+      const meta = BUNDLED_SKILL_META[id] || {};
+      return {
+        label: meta.label || `📄 ${id}`,
+        description: 'Bundled skill',
+        file: path.join(bundledSkillsDir, fileName),
+        ...(meta.category ? { category: meta.category } : {}),
+      };
+    });
+    for (const [id, skill] of Object.entries(bundledSkills)) addDiscoveredSkill(merged.skills, id, skill);
+  }
+
+  const marketplaceSkills = discoverMarketplacePluginSkills();
+  for (const [id, skill] of Object.entries(marketplaceSkills)) addDiscoveredSkill(merged.skills, id, skill);
+
+  const cachedPluginSkills = discoverCachedPluginSkills();
+  for (const [id, skill] of Object.entries(cachedPluginSkills)) addDiscoveredSkill(merged.skills, id, skill);
+
+  return merged;
+}
+
 function saveConfig(c) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(c, null, 2));
   _mergedConfigCache = null; // invalidate on every write
@@ -1555,12 +1750,12 @@ function loadMergedConfig() {
   let g = {}, l = {};
   try { g = JSON.parse(fs.readFileSync(GLOBAL_CONFIG_PATH, 'utf-8')); } catch {}
   try { l = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')); } catch {}
-  _mergedConfigCache = {
+  _mergedConfigCache = addAutoDiscoveredSkills({
     mcpServers:    { ...(g.mcpServers||{}), ...(l.mcpServers||{}) },
     skills:        { ...(g.skills||{}),     ...(l.skills||{})     },
     slashCommands: [...(l.slashCommands||[])],
     lang:          l.lang || g.lang || 'en',
-  };
+  });
   return _mergedConfigCache;
 }
 
@@ -1680,8 +1875,16 @@ function buildSystemPrompt(skillIds, config) {
   for (const sid of skillIds) {
     const s = config.skills[sid];
     if (!s) continue;
-    const content = getSkillContent(resolveSkillFile(s.file));
-    if (content) prompt += `\n\n--- SKILL: ${s.label} ---\n${content}`;
+    const resolvedFile = resolveSkillFile(s.file);
+    const content = getSkillContent(resolvedFile);
+    if (!content) continue;
+    if (s.plugin) {
+      const skillDir = s.skillDir || path.dirname(resolvedFile);
+      const pluginRoot = s.pluginRoot || path.resolve(skillDir, '..', '..');
+      prompt += `\n\n--- SKILL: ${s.label} ---\nPLUGIN CONTEXT:\n- Plugin root: ${pluginRoot}\n- Skill directory: ${skillDir}\n- If the skill text references \${CLAUDE_PLUGIN_ROOT}, use the plugin root above.\n- Relative paths like references/, examples/, and scripts/ are relative to the skill directory above.\n${content}`;
+      continue;
+    }
+    prompt += `\n\n--- SKILL: ${s.label} ---\n${content}`;
   }
 
   prompt += ASK_USER_INSTRUCTION;
@@ -2840,35 +3043,6 @@ app.get('/api/sessions/:id/messages', (req, res) => {
 app.get('/api/config', (_,res) => {
   _mergedConfigCache = null; // always fresh for the config UI — disk may have changed externally
   const c = loadMergedConfig();
-  // Auto-discover skills from global dir that are not already in config
-  if (fs.existsSync(GLOBAL_SKILLS_DIR)) {
-    for (const f of fs.readdirSync(GLOBAL_SKILLS_DIR).filter(f => f.endsWith('.md'))) {
-      const id = path.parse(f).name;
-      if (!c.skills[id]) c.skills[id] = { label:`🌐 ${id}`, description:'Global skill (~/.claude/skills/)', file:path.join(GLOBAL_SKILLS_DIR, f), global:true };
-    }
-  }
-  // Auto-discover skills from local dir (APP_DIR/skills/) that are not already in config
-  if (fs.existsSync(SKILLS_DIR)) {
-    for (const f of fs.readdirSync(SKILLS_DIR).filter(f => f.endsWith('.md'))) {
-      const id = path.parse(f).name;
-      if (!c.skills[id]) {
-        const meta = BUNDLED_SKILL_META[id] || {};
-        c.skills[id] = { label: meta.label || `📄 ${id}`, description:'Local skill', file:`skills/${f}`, ...(meta.category ? { category:meta.category } : {}) };
-      }
-    }
-  }
-  // Auto-discover bundled skills (__dirname/skills/) when running via npx (APP_DIR != __dirname)
-  const BUNDLED_SKILLS_DIR = path.join(__dirname, 'skills');
-  if (BUNDLED_SKILLS_DIR !== SKILLS_DIR && fs.existsSync(BUNDLED_SKILLS_DIR)) {
-    for (const f of fs.readdirSync(BUNDLED_SKILLS_DIR).filter(f => f.endsWith('.md'))) {
-      const id = path.parse(f).name;
-      if (!c.skills[id]) {
-        const meta = BUNDLED_SKILL_META[id] || {};
-        c.skills[id] = { label: meta.label || `📄 ${id}`, description:'Bundled skill', file:path.join(BUNDLED_SKILLS_DIR, f), ...(meta.category ? { category:meta.category } : {}) };
-      }
-    }
-  }
-  for (const[k,s] of Object.entries(c.skills||{})) { try{s.content=fs.readFileSync(resolveSkillFile(s.file),'utf-8')}catch{s.content=''} }
   res.json(c);
 });
 app.post('/api/mcp/add', (req,res) => {

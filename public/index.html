@@ -211,6 +211,7 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 /* ─── Skill categories ─── */
 .sk-cat { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); padding: 10px 10px 4px; opacity: .7; }
 .sk-cat:first-child { padding-top: 2px; }
+.sk-subcat { font-size: 11px; font-weight: 600; color: var(--accent2); padding: 6px 10px 3px 18px; opacity: .85; }
 
 /* ─── Toggle items ─── */
 .ci { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r); cursor: pointer; font-size: 13px; transition: background .12s; border: 1px solid transparent; }
@@ -1344,11 +1345,19 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 /* ─── Tooltips (floating JS div) ─── */
 #globalTip {
   position: fixed; z-index: 9999; pointer-events: none;
-  padding: 6px 11px; background: #1a2235; border: 1px solid rgba(255,255,255,.13);
-  border-radius: 8px; font-size: 12px; line-height: 1.5; max-width: 360px;
-  white-space: normal; color: var(--text);
-  box-shadow: 0 4px 20px rgba(0,0,0,.55), 0 1px 4px rgba(0,0,0,.3);
-  opacity: 0; transition: opacity .12s ease; word-break: break-word;
+  padding: 12px 16px;
+  background: rgba(16, 23, 38, .98);
+  border: 1px solid rgba(158, 182, 255, .26);
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.72;
+  font-weight: 500;
+  max-width: 620px;
+  min-width: 240px;
+  white-space: pre-wrap;
+  color: #f3f7ff;
+  box-shadow: 0 14px 38px rgba(0,0,0,.52), 0 2px 10px rgba(0,0,0,.28);
+  opacity: 0; transition: opacity .18s ease; word-break: break-word;
 }
 
 /* ─── Scrollbars ─── */
@@ -6088,12 +6097,15 @@ function updateSessBarSkills() {
   const el = $i('sessBarSkills');
   if (!el) return;
   el.innerHTML = '';
+  const buildSkillTip = (label, description) => [label, description].filter(Boolean).join('\n\n');
   // Auto-skills mode badge
   if (autoSkillsMode) {
     const auto = document.createElement('span');
     auto.className = 'sess-skill-chip sess-skill-auto';
     auto.textContent = '⚡ Auto';
-    auto.title = t('auto.title.on') || 'Skills are auto-selected based on task';
+    const autoTip = t('auto.title.on') || 'Skills are auto-selected based on task';
+    auto.title = autoTip;
+    auto.dataset.tip = autoTip;
     el.appendChild(auto);
   }
   // Show active skill chips (filter out 'auto-mode' meta-skill)
@@ -6104,8 +6116,13 @@ function updateSessBarSkills() {
       if (!s) continue;
       const chip = document.createElement('span');
       chip.className = 'sess-skill-chip';
-      chip.textContent = s.label || id;
-      chip.title = s.description || id;
+      const label = s.shortLabel || s.label || id;
+      const fullLabel = s.label || label || id;
+      const description = s.description || s.technicalDescription || id;
+      const tip = buildSkillTip(fullLabel, description);
+      chip.textContent = label;
+      chip.title = tip;
+      chip.dataset.tip = tip;
       el.appendChild(chip);
     }
   }
@@ -7964,6 +7981,7 @@ const SKILL_CATS = {
   finance:     { en: '💼 Finance', uk: '💼 Фінанси', ru: '💼 Финансы' },
   research:    { en: '🔬 Research', uk: '🔬 Дослідження', ru: '🔬 Исследования' },
   system:      { en: '⚙️ System', uk: '⚙️ Система', ru: '⚙️ Система' },
+  plugin:      { en: '🧩 Plugin Skills', uk: '🧩 Skills плагінів', ru: '🧩 Skills плагинов' },
 };
 
 // Skill classification is now server-side (LLM-based, haiku).
@@ -7985,6 +8003,35 @@ function renderSkills() {
   const el = $i('skillsList'); el.innerHTML = '';
   let c = 0;
   const lang = localStorage.getItem('lang') || 'uk';
+
+  function appendSkillItem(id, s) {
+    const on = activeSkills.has(id);
+    if (on) c++;
+    const primaryLabel = s.shortLabel || s.label || id;
+    const nameTip = s.tooltip || s.description || s.label || id;
+    const descText = s.plugin ? (s.description || s.technicalDescription || '') : (s.description || '');
+    const descTip = s.plugin
+      ? [s.tooltip || s.description || '', s.file ? `Path: ${s.file}` : ''].filter(Boolean).join('\n\n')
+      : (s.description || '');
+    const div = document.createElement('div');
+    div.className = `ci ${on ? 'on' : ''}`;
+    div.title = on ? t('skill.toggle.on') : t('skill.toggle.off');
+    div.setAttribute('role', 'switch');
+    div.setAttribute('tabindex', '0');
+    div.setAttribute('aria-checked', String(on));
+    div.setAttribute('aria-label', primaryLabel);
+    div.onclick = () => tSkill(id);
+    div.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tSkill(id); } };
+    div.innerHTML = `
+      ${mkToggle(on)}
+      <div class="inf">
+        <div class="nm" data-tip="${escH(nameTip)}">${escH(primaryLabel)}</div>
+        <div class="ds" data-tip="${escH(descTip)}">${escH(descText)}</div>
+        <div class="st">${on ? t('skill.active') : t('skill.inactive')}</div>
+      </div>
+      ${s.custom ? `<button class="rm" onclick="event.stopPropagation();rSkill('${id}')" title="${t('skill.del.title')}">✕</button>` : ''}`;
+    el.appendChild(div);
+  }
 
   // Group skills by category
   const grouped = {};
@@ -8015,27 +8062,27 @@ function renderSkills() {
     catDiv.textContent = catLabel;
     el.appendChild(catDiv);
 
-    for (const [id, s] of items) {
-      const on = activeSkills.has(id);
-      if (on) c++;
-      const div = document.createElement('div');
-      div.className = `ci ${on ? 'on' : ''}`;
-      div.title = on ? t('skill.toggle.on') : t('skill.toggle.off');
-      div.setAttribute('role', 'switch');
-      div.setAttribute('tabindex', '0');
-      div.setAttribute('aria-checked', String(on));
-      div.setAttribute('aria-label', s.label || id);
-      div.onclick = () => tSkill(id);
-      div.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tSkill(id); } };
-      div.innerHTML = `
-        ${mkToggle(on)}
-        <div class="inf">
-          <div class="nm" data-tip="${escH(s.label || id)}">${escH(s.label || id)}</div>
-          <div class="ds" data-tip="${escH(s.description || '')}">${escH(s.description || '')}</div>
-          <div class="st">${on ? t('skill.active') : t('skill.inactive')}</div>
-        </div>
-        ${s.custom ? `<button class="rm" onclick="event.stopPropagation();rSkill('${id}')" title="${t('skill.del.title')}">✕</button>` : ''}`;
-      el.appendChild(div);
+    if (catId === 'plugin') {
+      const byPlugin = {};
+      for (const [id, s] of items) {
+        const pluginName = s.pluginName || 'plugin';
+        if (!byPlugin[pluginName]) byPlugin[pluginName] = [];
+        byPlugin[pluginName].push([id, s]);
+      }
+      for (const pluginName of Object.keys(byPlugin).sort((a, b) => a.localeCompare(b))) {
+        const subDiv = document.createElement('div');
+        subDiv.className = 'sk-subcat';
+        subDiv.textContent = pluginName;
+        el.appendChild(subDiv);
+        for (const [id, s] of byPlugin[pluginName].sort((a, b) => (a[1].label || a[0]).localeCompare(b[1].label || b[0]))) {
+          appendSkillItem(id, s);
+        }
+      }
+      continue;
+    }
+
+    for (const [id, s] of items.sort((a, b) => (a[1].label || a[0]).localeCompare(b[1].label || b[0]))) {
+      appendSkillItem(id, s);
     }
   }
   $i('skillsCount').textContent = c;
