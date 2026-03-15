@@ -99,9 +99,9 @@ const BOT_I18N = {
     'project_set': '✅ Проект: <code>{name}</code>\n\nВведіть /chats для перегляду чатів.',
     'project_invalid': '❌ Невірний номер. Спочатку виконайте /projects',
     'project_current': '📁 Поточний проект: <code>{name}</code>',
-    'project_hint': '💡 Спочатку виконайте /projects, потім /project <code><номер></code>',
+    'project_hint': '💡 Спочатку виконайте /projects, потім /project <code>&lt;номер&gt;</code>',
     'project_chats_label': '{count} чатів',
-    'project_select_hint': '💡 /project <code><номер></code> — вибрати проект',
+    'project_select_hint': '💡 /project <code>&lt;номер&gt;</code> — вибрати проект',
 
     // Chats
     'chats_title_project': '💬 <b>Чати</b> — {project}',
@@ -113,10 +113,10 @@ const BOT_I18N = {
     'chat_messages': '{count} повідомлень',
     'chat_no_messages': '📭 Немає повідомлень в цьому чаті.',
     'chat_active': '💬 Активний чат: {title}',
-    'chat_hint': '💡 Спочатку /chats, потім /chat <code><номер></code>',
-    'chat_select_hint': '💡 /chat <code><номер></code> — відкрити чат',
+    'chat_hint': '💡 Спочатку /chats, потім /chat <code>&lt;номер&gt;</code>',
+    'chat_select_hint': '💡 /chat <code>&lt;номер&gt;</code> — відкрити чат',
     'chat_invalid': '❌ Невірний номер. Спочатку виконайте /chats',
-    'chat_select_hint2': '💡 Спочатку виберіть чат: /chats → /chat <code><n></code>',
+    'chat_select_hint2': '💡 Спочатку виберіть чат: /chats → /chat <code>&lt;n&gt;</code>',
 
     // Dialog
     'dialog_messages': '📄 {count} повідомлень',
@@ -129,7 +129,7 @@ const BOT_I18N = {
     'compose_mode': '✉ <b>Режим відправки</b>\n\nВведіть повідомлення — воно буде відправлене в чат Claude.\n\n<i>Будь-який текст без / піде як повідомлення.</i>',
     'compose_hint': '📝 Пишіть повідомлення — воно піде в цей чат',
     'compose_no_session': 'Після цього просто пишіть повідомлення — вони будуть відправлені в чат.',
-    'compose_select_first': '💡 Спочатку виберіть чат:\n/projects → /project <code><n></code> → /chats → /chat <code><n></code>\n\nПісля цього просто пишіть повідомлення — вони будуть відправлені в чат.',
+    'compose_select_first': '💡 Спочатку виберіть чат:\n/projects → /project <code>&lt;n&gt;</code> → /chats → /chat <code>&lt;n&gt;</code>\n\nПісля цього просто пишіть повідомлення — вони будуть відправлені в чат.',
     'compose_sent': '⏳ Повідомлення відправлено{note}. Чекаю відповідь...',
 
     // Tasks
@@ -203,7 +203,7 @@ const BOT_I18N = {
     'time_ago_long': 'давно',
 
     // Help
-    'help_text': '📖 <b>Команди Claude Code Studio</b>\n\n<b>Навігація:</b>\n/projects — список проектів\n/project <code><n></code> — вибрати проект\n/chats — чати поточного проекту\n/chat <code><n></code> — відкрити чат\n/back — повернутися назад\n\n<b>Перегляд:</b>\n/last <code>[n]</code> — останні N повідомлень (5)\n/full — повна остання відповідь\n/tasks — задачі (Kanban)\n/files <code>[path]</code> — файли в workspace\n/cat <code><file></code> — вміст файлу\n/diff — git diff в workspace\n/log <code>[n]</code> — останні git коміти\n\n<b>Дії:</b>\n/new <code>[title]</code> — нова сесія\n/stop — зупинити поточну задачу\n\n<b>Remote Access:</b>\n/tunnel — керування доступом\n/url — показати публічний URL\n\n<b>Налаштування:</b>\n/status — стан Studio\n/notify <code>on/off</code> — сповіщення\n/unlink — відключити цей пристрій',
+    'help_text': '📖 <b>Команди Claude Code Studio</b>\n\n<b>Навігація:</b>\n/projects — список проектів\n/project <code>&lt;n&gt;</code> — вибрати проект\n/chats — чати поточного проекту\n/chat <code>&lt;n&gt;</code> — відкрити чат\n/back — повернутися назад\n\n<b>Перегляд:</b>\n/last <code>[n]</code> — останні N повідомлень (5)\n/full — повна остання відповідь\n/tasks — задачі (Kanban)\n/files <code>[path]</code> — файли в workspace\n/cat <code>&lt;file&gt;</code> — вміст файлу\n/diff — git diff в workspace\n/log <code>[n]</code> — останні git коміти\n\n<b>Дії:</b>\n/new <code>[title]</code> — нова сесія\n/stop — зупинити поточну задачу\n\n<b>Remote Access:</b>\n/tunnel — керування доступом\n/url — показати публічний URL\n\n<b>Forum Mode:</b>\n/forum — налаштування Forum Mode\n\n<b>Налаштування:</b>\n/status — стан Studio\n/notify <code>on/off</code> — сповіщення\n/unlink — відключити цей пристрій',
 
     // Back navigation
     'back_to_chats': '↩️ Повернулися до списку чатів. Введіть /chats',
@@ -233,8 +233,8 @@ const BOT_I18N = {
     // Misc
     'no_responses': '📭 Немає відповідей в цьому чаті.',
     'select_chat_first': '💡 Спочатку виберіть чат.',
-    'select_chat_hint': '💡 Спочатку виберіть чат: /chats → /chat <code><n></code>',
-    'cat_usage': '💡 Використання: /cat <code><файл></code>',
+    'select_chat_hint': '💡 Спочатку виберіть чат: /chats → /chat <code>&lt;n&gt;</code>',
+    'cat_usage': '💡 Використання: /cat <code>&lt;файл&gt;</code>',
     'msg_full_hint': '📎 /full — повна остання відповідь',
     'msg_compose_hint': '📝 Пишіть повідомлення — воно піде в цей чат',
 
@@ -340,9 +340,9 @@ const BOT_I18N = {
     'project_set': '✅ Project: <code>{name}</code>\n\nType /chats to view chats.',
     'project_invalid': '❌ Invalid number. Run /projects first.',
     'project_current': '📁 Current project: <code>{name}</code>',
-    'project_hint': '💡 Run /projects first, then /project <code><number></code>',
+    'project_hint': '💡 Run /projects first, then /project <code>&lt;number&gt;</code>',
     'project_chats_label': '{count} chats',
-    'project_select_hint': '💡 /project <code><number></code> — select project',
+    'project_select_hint': '💡 /project <code>&lt;number&gt;</code> — select project',
 
     'chats_title_project': '💬 <b>Chats</b> — {project}',
     'chats_title_all': '💬 <b>All chats</b>',
@@ -353,10 +353,10 @@ const BOT_I18N = {
     'chat_messages': '{count} messages',
     'chat_no_messages': '📭 No messages in this chat.',
     'chat_active': '💬 Active chat: {title}',
-    'chat_hint': '💡 Run /chats first, then /chat <code><number></code>',
-    'chat_select_hint': '💡 /chat <code><number></code> — open chat',
+    'chat_hint': '💡 Run /chats first, then /chat <code>&lt;number&gt;</code>',
+    'chat_select_hint': '💡 /chat <code>&lt;number&gt;</code> — open chat',
     'chat_invalid': '❌ Invalid number. Run /chats first.',
-    'chat_select_hint2': '💡 Select a chat first: /chats → /chat <code><n></code>',
+    'chat_select_hint2': '💡 Select a chat first: /chats → /chat <code>&lt;n&gt;</code>',
 
     'dialog_messages': '📄 {count} messages',
     'dialog_page': '📄 {count} messages | Page {page}/{total}',
@@ -367,7 +367,7 @@ const BOT_I18N = {
     'compose_mode': '✉ <b>Compose mode</b>\n\nType your message — it will be sent to the Claude chat.\n\n<i>Any text without / will be sent as a message.</i>',
     'compose_hint': '📝 Type a message — it will be sent to this chat',
     'compose_no_session': 'Now just type messages — they will be sent to the chat.',
-    'compose_select_first': '💡 Select a chat first:\n/projects → /project <code><n></code> → /chats → /chat <code><n></code>\n\nThen just type messages — they will be sent to the chat.',
+    'compose_select_first': '💡 Select a chat first:\n/projects → /project <code>&lt;n&gt;</code> → /chats → /chat <code>&lt;n&gt;</code>\n\nThen just type messages — they will be sent to the chat.',
     'compose_sent': '⏳ Message sent{note}. Waiting for response...',
 
     'tasks_title': '📋 <b>Tasks</b> ({count})',
@@ -433,7 +433,7 @@ const BOT_I18N = {
     'time_ago_day': '{n}d ago',
     'time_ago_long': 'long ago',
 
-    'help_text': '📖 <b>Claude Code Studio Commands</b>\n\n<b>Navigation:</b>\n/projects — list projects\n/project <code><n></code> — select project\n/chats — chats of current project\n/chat <code><n></code> — open chat\n/back — go back\n\n<b>View:</b>\n/last <code>[n]</code> — last N messages (5)\n/full — full last response\n/tasks — tasks (Kanban)\n/files <code>[path]</code> — files in workspace\n/cat <code><file></code> — file contents\n/diff — git diff in workspace\n/log <code>[n]</code> — recent git commits\n\n<b>Actions:</b>\n/new <code>[title]</code> — new session\n/stop — stop current task\n\n<b>Remote Access:</b>\n/tunnel — manage remote access\n/url — show public URL\n\n<b>Settings:</b>\n/status — Studio status\n/notify <code>on/off</code> — notifications\n/unlink — unlink this device',
+    'help_text': '📖 <b>Claude Code Studio Commands</b>\n\n<b>Navigation:</b>\n/projects — list projects\n/project <code>&lt;n&gt;</code> — select project\n/chats — chats of current project\n/chat <code>&lt;n&gt;</code> — open chat\n/back — go back\n\n<b>View:</b>\n/last <code>[n]</code> — last N messages (5)\n/full — full last response\n/tasks — tasks (Kanban)\n/files <code>[path]</code> — files in workspace\n/cat <code>&lt;file&gt;</code> — file contents\n/diff — git diff in workspace\n/log <code>[n]</code> — recent git commits\n\n<b>Actions:</b>\n/new <code>[title]</code> — new session\n/stop — stop current task\n\n<b>Remote Access:</b>\n/tunnel — manage remote access\n/url — show public URL\n\n<b>Forum Mode:</b>\n/forum — set up Forum Mode\n\n<b>Settings:</b>\n/status — Studio status\n/notify <code>on/off</code> — notifications\n/unlink — unlink this device',
 
     'back_to_chats': '↩️ Back to chat list. Type /chats',
     'back_to_projects': '↩️ Back to project list. Type /projects',
@@ -459,8 +459,8 @@ const BOT_I18N = {
 
     'no_responses': '📭 No responses in this chat.',
     'select_chat_first': '💡 Select a chat first.',
-    'select_chat_hint': '💡 Select a chat first: /chats → /chat <code><n></code>',
-    'cat_usage': '💡 Usage: /cat <code><file></code>',
+    'select_chat_hint': '💡 Select a chat first: /chats → /chat <code>&lt;n&gt;</code>',
+    'cat_usage': '💡 Usage: /cat <code>&lt;file&gt;</code>',
     'msg_full_hint': '📎 /full — full last response',
     'msg_compose_hint': '📝 Type a message — it will be sent to this chat',
 
@@ -565,9 +565,9 @@ const BOT_I18N = {
     'project_set': '✅ Проект: <code>{name}</code>\n\nВведите /chats для просмотра чатов.',
     'project_invalid': '❌ Неверный номер. Сначала выполните /projects',
     'project_current': '📁 Текущий проект: <code>{name}</code>',
-    'project_hint': '💡 Сначала выполните /projects, потом /project <code><номер></code>',
+    'project_hint': '💡 Сначала выполните /projects, потом /project <code>&lt;номер&gt;</code>',
     'project_chats_label': '{count} чатов',
-    'project_select_hint': '💡 /project <code><номер></code> — выбрать проект',
+    'project_select_hint': '💡 /project <code>&lt;номер&gt;</code> — выбрать проект',
 
     'chats_title_project': '💬 <b>Чаты</b> — {project}',
     'chats_title_all': '💬 <b>Все чаты</b>',
@@ -578,10 +578,10 @@ const BOT_I18N = {
     'chat_messages': '{count} сообщений',
     'chat_no_messages': '📭 Нет сообщений в этом чате.',
     'chat_active': '💬 Активный чат: {title}',
-    'chat_hint': '💡 Сначала /chats, потом /chat <code><номер></code>',
-    'chat_select_hint': '💡 /chat <code><номер></code> — открыть чат',
+    'chat_hint': '💡 Сначала /chats, потом /chat <code>&lt;номер&gt;</code>',
+    'chat_select_hint': '💡 /chat <code>&lt;номер&gt;</code> — открыть чат',
     'chat_invalid': '❌ Неверный номер. Сначала выполните /chats',
-    'chat_select_hint2': '💡 Сначала выберите чат: /chats → /chat <code><n></code>',
+    'chat_select_hint2': '💡 Сначала выберите чат: /chats → /chat <code>&lt;n&gt;</code>',
 
     'dialog_messages': '📄 {count} сообщений',
     'dialog_page': '📄 {count} сообщений | Страница {page}/{total}',
@@ -592,7 +592,7 @@ const BOT_I18N = {
     'compose_mode': '✉ <b>Режим отправки</b>\n\nВведите сообщение — оно будет отправлено в чат Claude.\n\n<i>Любой текст без / пойдёт как сообщение.</i>',
     'compose_hint': '📝 Пишите сообщение — оно пойдёт в этот чат',
     'compose_no_session': 'Теперь просто пишите сообщения — они будут отправлены в чат.',
-    'compose_select_first': '💡 Сначала выберите чат:\n/projects → /project <code><n></code> → /chats → /chat <code><n></code>\n\nТеперь просто пишите сообщения — они будут отправлены в чат.',
+    'compose_select_first': '💡 Сначала выберите чат:\n/projects → /project <code>&lt;n&gt;</code> → /chats → /chat <code>&lt;n&gt;</code>\n\nТеперь просто пишите сообщения — они будут отправлены в чат.',
     'compose_sent': '⏳ Сообщение отправлено{note}. Ожидаю ответ...',
 
     'tasks_title': '📋 <b>Задачи</b> ({count})',
@@ -658,7 +658,7 @@ const BOT_I18N = {
     'time_ago_day': '{n} д назад',
     'time_ago_long': 'давно',
 
-    'help_text': '📖 <b>Команды Claude Code Studio</b>\n\n<b>Навигация:</b>\n/projects — список проектов\n/project <code><n></code> — выбрать проект\n/chats — чаты текущего проекта\n/chat <code><n></code> — открыть чат\n/back — вернуться назад\n\n<b>Просмотр:</b>\n/last <code>[n]</code> — последние N сообщений (5)\n/full — полный последний ответ\n/tasks — задачи (Kanban)\n/files <code>[path]</code> — файлы в workspace\n/cat <code><file></code> — содержимое файла\n/diff — git diff в workspace\n/log <code>[n]</code> — последние git коммиты\n\n<b>Действия:</b>\n/new <code>[title]</code> — новая сессия\n/stop — остановить текущую задачу\n\n<b>Remote Access:</b>\n/tunnel — управление доступом\n/url — показать публичный URL\n\n<b>Настройки:</b>\n/status — состояние Studio\n/notify <code>on/off</code> — уведомления\n/unlink — отключить это устройство',
+    'help_text': '📖 <b>Команды Claude Code Studio</b>\n\n<b>Навигация:</b>\n/projects — список проектов\n/project <code>&lt;n&gt;</code> — выбрать проект\n/chats — чаты текущего проекта\n/chat <code>&lt;n&gt;</code> — открыть чат\n/back — вернуться назад\n\n<b>Просмотр:</b>\n/last <code>[n]</code> — последние N сообщений (5)\n/full — полный последний ответ\n/tasks — задачи (Kanban)\n/files <code>[path]</code> — файлы в workspace\n/cat <code>&lt;file&gt;</code> — содержимое файла\n/diff — git diff в workspace\n/log <code>[n]</code> — последние git коммиты\n\n<b>Действия:</b>\n/new <code>[title]</code> — новая сессия\n/stop — остановить текущую задачу\n\n<b>Remote Access:</b>\n/tunnel — управление доступом\n/url — показать публичный URL\n\n<b>Forum Mode:</b>\n/forum — настройка Forum Mode\n\n<b>Настройки:</b>\n/status — состояние Studio\n/notify <code>on/off</code> — уведомления\n/unlink — отключить это устройство',
 
     'back_to_chats': '↩️ Вернулись к списку чатов. Введите /chats',
     'back_to_projects': '↩️ Вернулись к списку проектов. Введите /projects',
@@ -684,8 +684,8 @@ const BOT_I18N = {
 
     'no_responses': '📭 Нет ответов в этом чате.',
     'select_chat_first': '💡 Сначала выберите чат.',
-    'select_chat_hint': '💡 Сначала выберите чат: /chats → /chat <code><n></code>',
-    'cat_usage': '💡 Использование: /cat <code><файл></code>',
+    'select_chat_hint': '💡 Сначала выберите чат: /chats → /chat <code>&lt;n&gt;</code>',
+    'cat_usage': '💡 Использование: /cat <code>&lt;файл&gt;</code>',
     'msg_full_hint': '📎 /full — полный последний ответ',
     'msg_compose_hint': '📝 Пишите сообщение — оно пойдёт в этот чат',
 
