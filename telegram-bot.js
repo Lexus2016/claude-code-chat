@@ -1190,6 +1190,15 @@ class TelegramBot extends EventEmitter {
     const isForum = msg.chat?.type === 'supergroup' && msg.is_topic_message;
 
     try {
+      // Supergroup: handle /connect command early (before forum routing and auth)
+      // Works both with and without @botname suffix, in topics and General
+      if (msg.chat?.type === 'supergroup' && msg.text) {
+        const connectText = msg.text.trim().toLowerCase().replace(/@\w+$/, '');
+        if (connectText === '/connect') {
+          return await this._handleForumConnect(msg);
+        }
+      }
+
       // Forum mode: route to forum handler if message is from this user's paired forum group
       if (isForum && this._isAuthorized(userId)) {
         const device = this._stmts.getDevice.get(userId);
@@ -1212,11 +1221,6 @@ class TelegramBot extends EventEmitter {
       if (!msg.text) return;
 
       const text = msg.text.trim();
-
-      // Forum supergroup: handle /connect command even for unauthorized users
-      if (msg.chat?.type === 'supergroup' && text === '/connect') {
-        return await this._handleForumConnect(msg);
-      }
 
       // Rate limiting for authorized users
       if (this._isAuthorized(userId) && !this._checkRateLimit(userId)) {
