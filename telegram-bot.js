@@ -135,6 +135,12 @@ const BOT_I18N = {
     // Tasks
     'tasks_title': '📋 <b>Задачі</b> ({count})',
     'tasks_empty': '📋 Немає задач.',
+    'btn_new_chat': '➕ Новий чат',
+    'btn_new_task': '➕ Нова задача',
+    'new_task_prompt': '📋 <b>Нова задача</b>\n\nВведіть назву задачі:',
+    'new_task_created': '✅ <b>Задачу створено</b>\n\n📋 {title}\n📌 Статус: backlog',
+    'new_task_with_desc': '💡 Введіть опис задачі або натисніть «Пропустити»:',
+    'btn_skip': '⏭ Пропустити',
 
     // Status
     'status_title': '📊 <b>Studio Status</b>',
@@ -254,6 +260,30 @@ const BOT_I18N = {
     'error_no_session': '❌ Немає вибраної активної сесії',
     'stop_sent': '🛑 Сигнал зупинки надіслано...',
     'new_session_created': '✅ <b>Нову сесію створено</b> (#{id})\n\nНадішліть ваше повідомлення:',
+
+    // Forum mode
+    'forum_instructions': '🏗 <b>Налаштування Forum Mode</b>\n\n1. Створіть нову приватну групу в Telegram\n2. Назвіть її, наприклад, «Claude Studio»\n3. Увімкніть <b>Topics</b> в налаштуваннях групи\n4. Додайте мене як адміна з правом «Manage Topics»\n5. Напишіть у групі: /connect',
+    'forum_already': '✅ Forum вже підключено.',
+    'forum_connected': '✅ <b>Forum підключено!</b>\n\nСтворюю структуру...',
+    'forum_created_topics': '✅ Структуру створено:\n\n📋 <b>Tasks</b> — управління задачами\n🔔 <b>Activity</b> — сповіщення\n\nТеми проєктів з\'являться автоматично.',
+    'forum_not_supergroup': '❌ Ця команда працює тільки в супергрупі з увімкненими Topics.',
+    'forum_not_admin': '❌ Додайте бота як адміна з правом «Manage Topics».',
+    'forum_not_paired': '❌ Спершу спаруйтесь з ботом у приватному чаті.',
+    'forum_disconnected': '✅ Forum відключено.',
+    'forum_topic_project': '📁 <b>{name}</b>\n📂 {path}\n\nПросто пишіть повідомлення — вони йдуть до Claude.\n\n/new — нова сесія\n/history — попередні сесії\n/files — файли проєкту\n/diff — git diff\n/log — git log',
+    'forum_topic_tasks': '📋 <b>Задачі</b>\n\nКоманди:\n/new <i>назва</i> — створити задачу\n/list — показати всі\n/done <i>#id</i> — завершити задачу\n/start <i>#id</i> — почати задачу',
+    'forum_topic_activity': '🔔 <b>Сповіщення</b>\n\nТут з\'являтимуться оновлення про завершення задач та помилки.',
+    'forum_task_created': '📝 <b>#{id}</b> {title}\n📌 backlog{workdir_line}\n\n[/start #{id}] [/done #{id}]',
+    'forum_task_updated': '{icon} <b>#{id}</b> {title} → {status}',
+    'forum_task_not_found': '❌ Задачу не знайдено.',
+    'forum_no_text': '💡 Надішліть текстове повідомлення для спілкування з Claude.',
+    'forum_session_started': '💬 <b>Нова сесія</b>\n\nПишіть повідомлення — вони йдуть до Claude.',
+    'forum_history_title': '📜 <b>Сесії</b> ({count})\n',
+    'forum_history_empty': '📜 Немає попередніх сесій.',
+    'forum_switch_session': '💬 Перемкнуто на сесію: <b>{title}</b>',
+    'forum_unknown_topic': '❓ Ця тема не прив\'язана до проєкту.\n\nВикористовуйте теми, створені ботом.',
+    'btn_forum_setup': '🏗 Forum Mode',
+    'btn_forum_disconnect': '🔌 Відключити Forum',
   },
   en: {
     'rate_limit': '⚠️ Too many requests. Please wait a minute.',
@@ -342,6 +372,12 @@ const BOT_I18N = {
 
     'tasks_title': '📋 <b>Tasks</b> ({count})',
     'tasks_empty': '📋 No tasks.',
+    'btn_new_chat': '➕ New chat',
+    'btn_new_task': '➕ New task',
+    'new_task_prompt': '📋 <b>New task</b>\n\nEnter task title:',
+    'new_task_created': '✅ <b>Task created</b>\n\n📋 {title}\n📌 Status: backlog',
+    'new_task_with_desc': '💡 Enter task description or press «Skip»:',
+    'btn_skip': '⏭ Skip',
 
     'status_title': '📊 <b>Studio Status</b>',
     'status_uptime': '⏱ Uptime: {hours}h {mins}m',
@@ -449,6 +485,30 @@ const BOT_I18N = {
     'error_no_session': '❌ No active session selected',
     'stop_sent': '🛑 Stop signal sent...',
     'new_session_created': '✅ <b>New session created</b> (#{id})\n\nSend your message:',
+
+    // Forum mode
+    'forum_instructions': '🏗 <b>Forum Mode Setup</b>\n\n1. Create a new private group in Telegram\n2. Name it, e.g. "Claude Studio"\n3. Enable <b>Topics</b> in group settings\n4. Add me as admin with "Manage Topics" permission\n5. Write /connect in the group',
+    'forum_already': '✅ Forum is already connected.',
+    'forum_connected': '✅ <b>Forum connected!</b>\n\nCreating structure...',
+    'forum_created_topics': '✅ Structure created:\n\n📋 <b>Tasks</b> — task management\n🔔 <b>Activity</b> — notifications\n\nProject topics will appear automatically.',
+    'forum_not_supergroup': '❌ This command only works in a supergroup with Topics enabled.',
+    'forum_not_admin': '❌ Add the bot as admin with "Manage Topics" permission.',
+    'forum_not_paired': '❌ Pair with the bot in a private chat first.',
+    'forum_disconnected': '✅ Forum disconnected.',
+    'forum_topic_project': '📁 <b>{name}</b>\n📂 {path}\n\nJust write messages — they go to Claude.\n\n/new — new session\n/history — previous sessions\n/files — project files\n/diff — git diff\n/log — git log',
+    'forum_topic_tasks': '📋 <b>Tasks</b>\n\nCommands:\n/new <i>title</i> — create task\n/list — show all\n/done <i>#id</i> — complete task\n/start <i>#id</i> — start task',
+    'forum_topic_activity': '🔔 <b>Notifications</b>\n\nTask completions and errors will appear here.',
+    'forum_task_created': '📝 <b>#{id}</b> {title}\n📌 backlog{workdir_line}\n\n[/start #{id}] [/done #{id}]',
+    'forum_task_updated': '{icon} <b>#{id}</b> {title} → {status}',
+    'forum_task_not_found': '❌ Task not found.',
+    'forum_no_text': '💡 Send a text message to talk to Claude.',
+    'forum_session_started': '💬 <b>New session</b>\n\nWrite messages — they go to Claude.',
+    'forum_history_title': '📜 <b>Sessions</b> ({count})\n',
+    'forum_history_empty': '📜 No previous sessions.',
+    'forum_switch_session': '💬 Switched to session: <b>{title}</b>',
+    'forum_unknown_topic': '❓ This topic is not linked to a project.\n\nUse topics created by the bot.',
+    'btn_forum_setup': '🏗 Forum Mode',
+    'btn_forum_disconnect': '🔌 Disconnect Forum',
   },
   ru: {
     'rate_limit': '⚠️ Слишком много запросов. Подождите минуту.',
@@ -537,6 +597,12 @@ const BOT_I18N = {
 
     'tasks_title': '📋 <b>Задачи</b> ({count})',
     'tasks_empty': '📋 Нет задач.',
+    'btn_new_chat': '➕ Новый чат',
+    'btn_new_task': '➕ Новая задача',
+    'new_task_prompt': '📋 <b>Новая задача</b>\n\nВведите название задачи:',
+    'new_task_created': '✅ <b>Задача создана</b>\n\n📋 {title}\n📌 Статус: backlog',
+    'new_task_with_desc': '💡 Введите описание задачи или нажмите «Пропустить»:',
+    'btn_skip': '⏭ Пропустить',
 
     'status_title': '📊 <b>Studio Status</b>',
     'status_uptime': '⏱ Аптайм: {hours}h {mins}m',
@@ -644,6 +710,30 @@ const BOT_I18N = {
     'error_no_session': '❌ Нет выбранной активной сессии',
     'stop_sent': '🛑 Сигнал остановки отправлен...',
     'new_session_created': '✅ <b>Новая сессия создана</b> (#{id})\n\nОтправьте ваше сообщение:',
+
+    // Forum mode
+    'forum_instructions': '🏗 <b>Настройка Forum Mode</b>\n\n1. Создайте новую приватную группу в Telegram\n2. Назовите её, например, «Claude Studio»\n3. Включите <b>Темы</b> в настройках группы\n4. Добавьте меня как админа с правом «Управление темами»\n5. Напишите в группе: /connect',
+    'forum_already': '✅ Forum уже подключён.',
+    'forum_connected': '✅ <b>Forum подключён!</b>\n\nСоздаю структуру...',
+    'forum_created_topics': '✅ Структура создана:\n\n📋 <b>Tasks</b> — управление задачами\n🔔 <b>Activity</b> — уведомления\n\nТемы проектов появятся автоматически.',
+    'forum_not_supergroup': '❌ Эта команда работает только в супергруппе с включёнными Темами.',
+    'forum_not_admin': '❌ Добавьте бота как админа с правом «Управление темами».',
+    'forum_not_paired': '❌ Сначала подключитесь к боту в личном чате.',
+    'forum_disconnected': '✅ Forum отключён.',
+    'forum_topic_project': '📁 <b>{name}</b>\n📂 {path}\n\nПросто пишите сообщения — они идут к Claude.\n\n/new — новая сессия\n/history — предыдущие сессии\n/files — файлы проекта\n/diff — git diff\n/log — git log',
+    'forum_topic_tasks': '📋 <b>Задачи</b>\n\nКоманды:\n/new <i>название</i> — создать задачу\n/list — показать все\n/done <i>#id</i> — завершить задачу\n/start <i>#id</i> — начать задачу',
+    'forum_topic_activity': '🔔 <b>Уведомления</b>\n\nЗдесь будут появляться обновления о завершении задач и ошибках.',
+    'forum_task_created': '📝 <b>#{id}</b> {title}\n📌 backlog{workdir_line}\n\n[/start #{id}] [/done #{id}]',
+    'forum_task_updated': '{icon} <b>#{id}</b> {title} → {status}',
+    'forum_task_not_found': '❌ Задача не найдена.',
+    'forum_no_text': '💡 Отправьте текстовое сообщение для общения с Claude.',
+    'forum_session_started': '💬 <b>Новая сессия</b>\n\nПишите сообщения — они идут к Claude.',
+    'forum_history_title': '📜 <b>Сессии</b> ({count})\n',
+    'forum_history_empty': '📜 Нет предыдущих сессий.',
+    'forum_switch_session': '💬 Переключено на сессию: <b>{title}</b>',
+    'forum_unknown_topic': '❓ Эта тема не привязана к проекту.\n\nИспользуйте темы, созданные ботом.',
+    'btn_forum_setup': '🏗 Forum Mode',
+    'btn_forum_disconnect': '🔌 Отключить Forum',
   },
 };
 
@@ -670,6 +760,9 @@ class TelegramBot extends EventEmitter {
     this._failedAttempts = new Map(); // telegramUserId → { count, blockedUntil }
     this._userContext = new Map();    // telegramUserId → { sessionId, projectWorkdir }
     this._rateLimit = new Map();     // telegramUserId → { count, resetAt }
+    this._currentThreadId = null;    // message_thread_id of the update being processed (forum topics)
+    this._forumTopics = new Map();   // threadId → { type, workdir, chatId } (populated from DB)
+    this._botId = null;              // bot's own user ID (set on start)
 
     // DB setup
     this._initDb();
@@ -706,6 +799,21 @@ class TelegramBot extends EventEmitter {
     // Phase 2: session persistence columns
     try { this.db.exec("ALTER TABLE telegram_devices ADD COLUMN last_session_id TEXT"); } catch(e) {}
     try { this.db.exec("ALTER TABLE telegram_devices ADD COLUMN last_workdir TEXT"); } catch(e) {}
+
+    // Forum mode: forum_chat_id on device (the supergroup ID)
+    try { this.db.exec("ALTER TABLE telegram_devices ADD COLUMN forum_chat_id INTEGER"); } catch(e) {}
+
+    // Forum topics mapping table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS forum_topics (
+        thread_id INTEGER NOT NULL,
+        chat_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        workdir TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (thread_id, chat_id)
+      );
+    `);
   }
 
   _prepareStmts() {
@@ -718,6 +826,24 @@ class TelegramBot extends EventEmitter {
       updateLastActive: this.db.prepare('UPDATE telegram_devices SET last_active = datetime(\'now\') WHERE telegram_user_id = ?'),
       getDeviceById:   this.db.prepare('SELECT * FROM telegram_devices WHERE id = ?'),
       updateNotifications: this.db.prepare('UPDATE telegram_devices SET notifications_enabled = ? WHERE telegram_user_id = ?'),
+      // Forum mode
+      setForumChatId:    this.db.prepare('UPDATE telegram_devices SET forum_chat_id = ? WHERE telegram_user_id = ?'),
+      getForumDevice:    this.db.prepare('SELECT * FROM telegram_devices WHERE forum_chat_id = ? AND telegram_user_id = ?'),
+      getForumDevices:   this.db.prepare('SELECT * FROM telegram_devices WHERE forum_chat_id IS NOT NULL AND notifications_enabled = 1'),
+      addForumTopic:     this.db.prepare('INSERT OR REPLACE INTO forum_topics (thread_id, chat_id, type, workdir) VALUES (?, ?, ?, ?)'),
+      getForumTopic:     this.db.prepare('SELECT * FROM forum_topics WHERE thread_id = ? AND chat_id = ?'),
+      getForumTopics:    this.db.prepare('SELECT * FROM forum_topics WHERE chat_id = ?'),
+      getForumTopicByWorkdir: this.db.prepare('SELECT * FROM forum_topics WHERE chat_id = ? AND type = ? AND workdir = ?'),
+      deleteForumTopic:  this.db.prepare('DELETE FROM forum_topics WHERE thread_id = ? AND chat_id = ?'),
+      deleteForumTopicsByChatId: this.db.prepare('DELETE FROM forum_topics WHERE chat_id = ?'),
+      // Forum sessions
+      insertSession:     this.db.prepare("INSERT INTO sessions (id, title, created_at, updated_at, workdir, model, engine) VALUES (?, ?, datetime('now'), datetime('now'), ?, 'sonnet', 'cli')"),
+      getSessionsByWorkdir: this.db.prepare('SELECT id, title, updated_at, (SELECT COUNT(*) FROM messages WHERE session_id = s.id) as msg_count FROM sessions s WHERE workdir = ? ORDER BY updated_at DESC LIMIT 15'),
+      // Forum tasks
+      insertTask:        this.db.prepare("INSERT INTO tasks (id, title, description, notes, status, sort_order, workdir) VALUES (?, ?, '', '', 'backlog', 0, ?)"),
+      listTasksOrdered:  this.db.prepare("SELECT id, title, status FROM tasks ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'todo' THEN 1 WHEN 'backlog' THEN 2 WHEN 'blocked' THEN 3 WHEN 'done' THEN 4 END, sort_order ASC LIMIT 30"),
+      findTaskByIdLike:  this.db.prepare('SELECT * FROM tasks WHERE id LIKE ?'),
+      updateTaskStatus:  this.db.prepare("UPDATE tasks SET status = ?, updated_at = datetime('now') WHERE id = ?"),
     };
   }
 
@@ -736,6 +862,7 @@ class TelegramBot extends EventEmitter {
     try {
       const me = await this._callApi('getMe');
       this._botInfo = me;
+      this._botId = me.id;
 
       // Delete any stale webhook — Telegram ignores getUpdates if webhook is set
       await this._callApi('deleteWebhook', { drop_pending_updates: false });
@@ -864,6 +991,11 @@ class TelegramBot extends EventEmitter {
       parse_mode: 'HTML',
       ...options,
     };
+
+    // Auto-inject thread_id for forum topics (unless already specified)
+    if (this._currentThreadId && !params.message_thread_id) {
+      params.message_thread_id = this._currentThreadId;
+    }
 
     try {
       return await this._callApi('sendMessage', params);
@@ -1036,7 +1168,13 @@ class TelegramBot extends EventEmitter {
   async _handleUpdate(update) {
     // Handle callback queries (inline button taps)
     if (update.callback_query) {
-      await this._handleCallback(update.callback_query);
+      // Set thread context from callback source message
+      this._currentThreadId = update.callback_query.message?.message_thread_id || null;
+      try {
+        await this._handleCallback(update.callback_query);
+      } finally {
+        this._currentThreadId = null;
+      }
       return;
     }
 
@@ -1047,64 +1185,87 @@ class TelegramBot extends EventEmitter {
     const chatId = msg.chat?.id;
     if (!userId || !chatId) return;
 
-    // Handle media messages (photos, documents, files)
-    if (msg.photo || msg.document) {
-      if (!this._isAuthorized(userId)) return;
-      if (!this._checkRateLimit(userId)) return;
+    // Set thread context for forum topics
+    this._currentThreadId = msg.message_thread_id || null;
+    const isForum = msg.chat?.type === 'supergroup' && msg.is_topic_message;
+
+    try {
+      // Forum mode: route to forum handler if message is from this user's paired forum group
+      if (isForum && this._isAuthorized(userId)) {
+        const device = this._stmts.getDevice.get(userId);
+        if (device?.forum_chat_id !== chatId) return; // Not this user's forum
+        if (!this._checkRateLimit(userId)) return;    // Rate-limit forum too
+        this._stmts.updateLastActive.run(userId);
+        this._restoreDeviceContext(userId);
+        return await this._handleForumMessage(msg);
+      }
+
+      // Handle media messages (photos, documents, files)
+      if (msg.photo || msg.document) {
+        if (!this._isAuthorized(userId)) return;
+        if (!this._checkRateLimit(userId)) return;
+        this._stmts.updateLastActive.run(userId);
+        this._restoreDeviceContext(userId);
+        return this._handleMediaMessage(msg);
+      }
+
+      if (!msg.text) return;
+
+      const text = msg.text.trim();
+
+      // Forum supergroup: handle /connect command even for unauthorized users
+      if (msg.chat?.type === 'supergroup' && text === '/connect') {
+        return await this._handleForumConnect(msg);
+      }
+
+      // Rate limiting for authorized users
+      if (this._isAuthorized(userId) && !this._checkRateLimit(userId)) {
+        await this._sendMessage(chatId, this._t('rate_limit'));
+        return;
+      }
+
+      // If user is not authorized — only handle pairing
+      if (!this._isAuthorized(userId)) {
+        await this._handleUnauthorized(msg);
+        return;
+      }
+
+      // Update last active
       this._stmts.updateLastActive.run(userId);
+
+      // Restore persisted context on first interaction
       this._restoreDeviceContext(userId);
-      return this._handleMediaMessage(msg);
-    }
 
-    if (!msg.text) return;
+      // Persistent keyboard buttons
+      if (text === this._t('kb_menu')) { return this._screenMainMenu(chatId, userId); }
+      if (text === this._t('kb_status')) { return this._cmdStatus(chatId); }
+      if (text === '🔔') {
+        const device = this._stmts.getDevice.get(userId);
+        const newVal = device?.notifications_enabled ? 0 : 1;
+        this._stmts.updateNotifications.run(newVal, userId);
+        return this._sendMessage(chatId, newVal ? this._t('notif_on') : this._t('notif_off'));
+      }
 
-    const text = msg.text.trim();
+      // Intercept: if there's a pending ask_user question, any text resolves it
+      const ctx = this._getContext(userId);
+      if (ctx.pendingAskRequestId) {
+        const requestId = ctx.pendingAskRequestId;
+        ctx.pendingAskRequestId = null;
+        ctx.pendingAskQuestions = null;
+        this.emit('ask_user_response', { requestId, answer: text });
+        await this._sendMessage(chatId, this._t('ask_answered'));
+        return;
+      }
 
-    // Rate limiting for authorized users
-    if (this._isAuthorized(userId) && !this._checkRateLimit(userId)) {
-      await this._sendMessage(chatId, this._t('rate_limit'));
-      return;
-    }
-
-    // If user is not authorized — only handle pairing
-    if (!this._isAuthorized(userId)) {
-      await this._handleUnauthorized(msg);
-      return;
-    }
-
-    // Update last active
-    this._stmts.updateLastActive.run(userId);
-
-    // Restore persisted context on first interaction
-    this._restoreDeviceContext(userId);
-
-    // Persistent keyboard buttons
-    if (text === this._t('kb_menu')) { return this._screenMainMenu(chatId, userId); }
-    if (text === this._t('kb_status')) { return this._cmdStatus(chatId); }
-    if (text === '🔔') {
-      const device = this._stmts.getDevice.get(userId);
-      const newVal = device?.notifications_enabled ? 0 : 1;
-      this._stmts.updateNotifications.run(newVal, userId);
-      return this._sendMessage(chatId, newVal ? this._t('notif_on') : this._t('notif_off'));
-    }
-
-    // Intercept: if there's a pending ask_user question, any text resolves it
-    const ctx = this._getContext(userId);
-    if (ctx.pendingAskRequestId) {
-      const requestId = ctx.pendingAskRequestId;
-      ctx.pendingAskRequestId = null;
-      ctx.pendingAskQuestions = null;
-      this.emit('ask_user_response', { requestId, answer: text });
-      await this._sendMessage(chatId, this._t('ask_answered'));
-      return;
-    }
-
-    // Route commands
-    if (text.startsWith('/')) {
-      await this._handleCommand(msg);
-    } else {
-      // Free text — send to active chat session
-      await this._handleTextMessage(msg);
+      // Route commands
+      if (text.startsWith('/')) {
+        await this._handleCommand(msg);
+      } else {
+        // Free text — send to active chat session
+        await this._handleTextMessage(msg);
+      }
+    } finally {
+      this._currentThreadId = null;
     }
   }
 
@@ -1221,6 +1382,7 @@ class TelegramBot extends EventEmitter {
       case '/new':     return this._cmdNew(chatId, userId, args.join(' '));
       case '/back':    return this._cmdBack(chatId, userId);
       case '/unlink':  return this._cmdUnlink(chatId, userId);
+      case '/forum':   return this._cmdForum(chatId, userId);
       case '/tunnel':  return this._cmdTunnel(chatId, userId);
       case '/url':     return this._cmdUrl(chatId);
       default:
@@ -1782,6 +1944,59 @@ class TelegramBot extends EventEmitter {
     const userId = msg.from.id;
     const ctx = this._getContext(userId);
 
+    // ─── Task creation input handling ─────────────────────────────────────
+    if (ctx.pendingInput === 'task_title') {
+      const title = (msg.text || '').trim().substring(0, 200);
+      if (!title) return;
+
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      const workdir = ctx.pendingTaskData?.workdir || null;
+
+      this.db.prepare(
+        "INSERT INTO tasks (id, title, description, notes, status, sort_order, workdir) VALUES (?, ?, '', '', 'backlog', 0, ?)"
+      ).run(id, title, workdir);
+
+      // Move to description input
+      ctx.pendingInput = 'task_description';
+      ctx.pendingTaskData = { ...ctx.pendingTaskData, taskId: id, title };
+
+      await this._sendMessage(chatId,
+        this._t('new_task_created', { title: this._escHtml(title) }) + '\n\n' + this._t('new_task_with_desc'),
+        {
+          reply_markup: JSON.stringify({ inline_keyboard: [
+            [{ text: this._t('btn_skip'), callback_data: 't:skip' }],
+          ]}),
+        }
+      );
+      return;
+    }
+
+    if (ctx.pendingInput === 'task_description') {
+      const description = (msg.text || '').trim().substring(0, 2000);
+      const taskId = ctx.pendingTaskData?.taskId;
+      const title = ctx.pendingTaskData?.title || '';
+
+      if (taskId && description) {
+        this.db.prepare("UPDATE tasks SET description = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(description, taskId);
+      }
+
+      ctx.pendingInput = null;
+      ctx.pendingTaskData = null;
+
+      // Show tasks list
+      await this._sendMessage(chatId,
+        `✅ ${this._escHtml(title)}`,
+        {
+          reply_markup: JSON.stringify({ inline_keyboard: [
+            [{ text: this._t('btn_tasks'), callback_data: 't:list' }],
+            [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+          ]}),
+        }
+      );
+      return;
+    }
+
     // Reset compose mode after sending
     if (ctx.composing) {
       ctx.composing = false;
@@ -1959,6 +2174,12 @@ class TelegramBot extends EventEmitter {
     ctx.screenChatId = chatId;
 
     try {
+      // Reset pending input on any navigation (except task-specific callbacks)
+      if (ctx.pendingInput && !data.startsWith('t:')) {
+        ctx.pendingInput = null;
+        ctx.pendingTaskData = null;
+      }
+
       // ask_user option selection
       if (data.startsWith('ask:')) return this._handleAskCallback(chatId, userId, msgId, data);
 
@@ -1969,12 +2190,15 @@ class TelegramBot extends EventEmitter {
       if (data === 'p:list' || data.startsWith('p:list:')) return this._screenProjects(chatId, userId, data);
       if (data.startsWith('p:sel:'))  return this._screenProjectSelect(chatId, userId, data);
       if (data.startsWith('pm:'))     return this._routeProjectMenu(chatId, userId, data);
+      if (data === 'c:new')            return this._handleNewChat(chatId, userId);
       if (data.startsWith('c:list:')) return this._screenChats(chatId, userId, data);
       if (data.startsWith('ch:'))     return this._screenChatSelect(chatId, userId, data);
       if (data.startsWith('cm:'))     return this._routeChatMenu(chatId, userId, data);
       if (data.startsWith('d:'))      return this._routeDialog(chatId, userId, data);
       if (data.startsWith('f:'))      return this._screenFiles(chatId, userId, data);
       if (data === 't:list' || data === 't:all') return this._screenTasks(chatId, userId, data);
+      if (data === 't:new')         return this._handleNewTask(chatId, userId);
+      if (data === 't:skip')        return this._handleSkipTaskDesc(chatId, userId);
       if (data === 's:menu')       return this._screenSettings(chatId, userId);
       if (data.startsWith('s:'))   return this._routeSettings(chatId, userId, data);
       if (data.startsWith('tn:'))  return this._routeTunnel(chatId, userId, data);
@@ -2085,6 +2309,7 @@ class TelegramBot extends EventEmitter {
       [{ text: this._t('btn_chats'), callback_data: 'c:list:0' }, { text: this._t('btn_files'), callback_data: 'f:.' }],
       [{ text: this._t('btn_git_log'), callback_data: 'pm:git' }, { text: this._t('btn_diff'), callback_data: 'pm:diff' }],
       [{ text: this._t('btn_tasks'), callback_data: 't:list' }],
+      [{ text: this._t('btn_new_chat'), callback_data: 'c:new' }, { text: this._t('btn_new_task'), callback_data: 't:new' }],
       [{ text: this._t('btn_back_projects'), callback_data: 'p:list' }],
     ];
 
@@ -2132,7 +2357,10 @@ class TelegramBot extends EventEmitter {
       if (rows.length === 0) {
         const backBtn = workdir ? 'pm:back' : 'm:menu';
         return this._editScreen(chatId, ctx.screenMsgId, this._t('chats_empty'),
-          [[{ text: this._t('btn_back'), callback_data: backBtn }]]);
+          [
+            [{ text: this._t('btn_new_chat'), callback_data: 'c:new' }],
+            [{ text: this._t('btn_back'), callback_data: backBtn }],
+          ]);
       }
 
       const totalPages = Math.ceil(rows.length / perPage);
@@ -2157,6 +2385,7 @@ class TelegramBot extends EventEmitter {
         keyboard.push(navRow);
       }
 
+      keyboard.push([{ text: this._t('btn_new_chat'), callback_data: 'c:new' }]);
       const backBtn = workdir ? 'pm:back' : 'm:menu';
       keyboard.push([{ text: this._t('btn_back'), callback_data: backBtn }]);
 
@@ -2605,7 +2834,10 @@ class TelegramBot extends EventEmitter {
       if (rows.length === 0) {
         const back = ctx.projectWorkdir && !showAll ? 'pm:back' : 'm:menu';
         return this._editScreen(chatId, ctx.screenMsgId, this._t('tasks_empty'),
-          [[{ text: this._t('btn_back'), callback_data: back }]]);
+          [
+            [{ text: this._t('btn_new_task'), callback_data: 't:new' }],
+            [{ text: this._t('btn_back'), callback_data: back }],
+          ]);
       }
 
       const icons = { backlog: '📋', todo: '📝', in_progress: '🔄', done: '✅', blocked: '🚫' };
@@ -2622,6 +2854,7 @@ class TelegramBot extends EventEmitter {
       }
 
       const keyboard = [];
+      keyboard.push([{ text: this._t('btn_new_task'), callback_data: 't:new' }]);
       if (ctx.projectWorkdir && !showAll) {
         keyboard.push([{ text: this._t('btn_all_tasks'), callback_data: 't:all' }]);
       }
@@ -2703,8 +2936,14 @@ class TelegramBot extends EventEmitter {
       this._t('settings_paired', { date: pairedDate }) + '\n' +
       this._t('settings_notif', { status: notif ? this._t('status_conn_on') : this._t('status_conn_off') });
 
+    // Forum mode status
+    if (device.forum_chat_id) {
+      text += '\n' + '🏗 Forum: ' + this._t('status_conn_on');
+    }
+
     const keyboard = [
       [{ text: notif ? this._t('btn_disable_notif') : this._t('btn_enable_notif'), callback_data: notif ? 's:notify:off' : 's:notify:on' }],
+      [{ text: device.forum_chat_id ? this._t('btn_forum_disconnect') : this._t('btn_forum_setup'), callback_data: device.forum_chat_id ? 's:forum:off' : 's:forum' }],
       [{ text: this._t('btn_unlink_device'), callback_data: 's:unlink' }],
       [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
     ];
@@ -2728,6 +2967,17 @@ class TelegramBot extends EventEmitter {
           [{ text: this._t('btn_cancel'), callback_data: 's:menu' }],
         ]
       );
+
+    } else if (data === 's:forum') {
+      // Show forum setup instructions
+      await this._editScreen(chatId, ctx.screenMsgId,
+        this._t('forum_instructions'),
+        [[{ text: this._t('btn_back'), callback_data: 's:menu' }]]
+      );
+
+    } else if (data === 's:forum:off') {
+      await this._cmdForumDisconnect(chatId, userId);
+      return this._screenSettings(chatId, userId);
 
     } else if (data === 's:unlink:yes') {
       this._stmts.removeByUserId.run(userId);
@@ -2813,6 +3063,7 @@ class TelegramBot extends EventEmitter {
           text: caption,
           userId,
           chatId,
+          threadId: msg.message_thread_id || null,
           attachments: [attachment],
           callback: (err) => {
             if (err) this._sendMessage(chatId, `❌ ${this._escHtml(err.message || 'Send failed')}`);
@@ -2953,6 +3204,15 @@ class TelegramBot extends EventEmitter {
       } catch (err) {
         this.log.warn(`[telegram] Notify failed for ${device.telegram_user_id}: ${err.message}`);
       }
+
+      // Also post to forum Activity topic if connected
+      if (device.forum_chat_id) {
+        try {
+          await this._notifyForumActivity(device.forum_chat_id, text);
+        } catch (err) {
+          this.log.warn(`[telegram] Forum activity notify failed: ${err.message}`);
+        }
+      }
     }
   }
 
@@ -2966,6 +3226,547 @@ class TelegramBot extends EventEmitter {
 
     this.emit('stop_task', { sessionId: ctx.sessionId, chatId });
     await this._sendMessage(chatId, this._t('stop_sent'));
+  }
+
+  // ─── Forum Mode ────────────────────────────────────────────────────────
+
+  /**
+   * /forum command in private chat — show setup instructions
+   */
+  async _cmdForum(chatId, userId) {
+    const device = this._stmts.getDevice.get(userId);
+    if (device?.forum_chat_id) {
+      return this._sendMessage(chatId, this._t('forum_already'));
+    }
+    await this._sendMessage(chatId, this._t('forum_instructions'));
+  }
+
+  /**
+   * /connect command in a supergroup — pair the forum group
+   */
+  async _handleForumConnect(msg) {
+    const userId = msg.from.id;
+    const chatId = msg.chat.id;
+
+    // Must be a supergroup with Topics enabled
+    if (msg.chat.type !== 'supergroup' || !msg.chat.is_forum) {
+      return this._sendMessage(chatId, this._t('forum_not_supergroup'));
+    }
+
+    // User must already be paired via private chat
+    if (!this._isAuthorized(userId)) {
+      return this._sendMessage(chatId, this._t('forum_not_paired'));
+    }
+
+    // Check bot has manage_topics permission
+    try {
+      const botMember = await this._callApi('getChatMember', { chat_id: chatId, user_id: this._botId });
+      const canManage = botMember?.can_manage_topics || botMember?.status === 'creator';
+      if (!canManage) {
+        return this._sendMessage(chatId, this._t('forum_not_admin'));
+      }
+    } catch {
+      return this._sendMessage(chatId, this._t('forum_not_admin'));
+    }
+
+    // Check if already connected
+    const device = this._stmts.getDevice.get(userId);
+    if (device?.forum_chat_id === chatId) {
+      return this._sendMessage(chatId, this._t('forum_already'));
+    }
+
+    // Save forum_chat_id, then create structure; rollback on failure
+    this._stmts.setForumChatId.run(chatId, userId);
+
+    try {
+      await this._createForumStructure(chatId);
+      await this._sendMessage(chatId, this._t('forum_connected'));
+    } catch (err) {
+      this._stmts.setForumChatId.run(null, userId);
+      this.log.error(`[telegram] Forum connect failed, rolled back: ${err.message}`);
+      await this._sendMessage(chatId, this._t('forum_not_admin'));
+    }
+  }
+
+  /**
+   * Create the initial forum structure: Tasks + Activity topics.
+   * Project topics are created on demand.
+   */
+  async _createForumStructure(chatId) {
+    try {
+      // Check if topics already exist
+      const existing = this._stmts.getForumTopics.all(chatId);
+      const hasTasksTopic = existing.some(t => t.type === 'tasks');
+      const hasActivityTopic = existing.some(t => t.type === 'activity');
+
+      if (!hasTasksTopic) {
+        const tasksTopic = await this._callApi('createForumTopic', {
+          chat_id: chatId,
+          name: '📋 Tasks',
+        });
+        this._stmts.addForumTopic.run(tasksTopic.message_thread_id, chatId, 'tasks', null);
+        this._forumTopics.set(`${chatId}:${tasksTopic.message_thread_id}`, { type: 'tasks', workdir: null, chatId });
+
+        // Pin instructions in Tasks topic (pass thread_id explicitly to avoid race condition)
+        const pinMsg = await this._sendMessage(chatId, this._t('forum_topic_tasks'), {
+          message_thread_id: tasksTopic.message_thread_id,
+        });
+        if (pinMsg) {
+          this._callApi('pinChatMessage', { chat_id: chatId, message_id: pinMsg.message_id, disable_notification: true }).catch(() => {});
+        }
+      }
+
+      if (!hasActivityTopic) {
+        const activityTopic = await this._callApi('createForumTopic', {
+          chat_id: chatId,
+          name: '🔔 Activity',
+        });
+        this._stmts.addForumTopic.run(activityTopic.message_thread_id, chatId, 'activity', null);
+        this._forumTopics.set(`${chatId}:${activityTopic.message_thread_id}`, { type: 'activity', workdir: null, chatId });
+
+        // Pin instructions in Activity topic (pass thread_id explicitly to avoid race condition)
+        const pinMsg = await this._sendMessage(chatId, this._t('forum_topic_activity'), {
+          message_thread_id: activityTopic.message_thread_id,
+        });
+        if (pinMsg) {
+          this._callApi('pinChatMessage', { chat_id: chatId, message_id: pinMsg.message_id, disable_notification: true }).catch(() => {});
+        }
+      }
+
+      // Notify in General topic
+      await this._sendMessage(chatId, this._t('forum_created_topics'));
+
+      // Create topics for existing projects
+      await this._syncProjectTopics(chatId);
+    } catch (err) {
+      this.log.error(`[telegram] Failed to create forum structure: ${err.message}`);
+      throw err; // Re-throw so _handleForumConnect can rollback
+    }
+  }
+
+  /**
+   * Create forum topics for projects that don't have one yet.
+   */
+  async _syncProjectTopics(chatId) {
+    try {
+      const projectsData = require('fs').readFileSync(
+        require('path').join(process.cwd(), 'data', 'projects.json'), 'utf8'
+      );
+      const projects = JSON.parse(projectsData);
+      if (!Array.isArray(projects)) return;
+
+      for (const project of projects) {
+        const workdir = typeof project === 'string' ? project : project?.path;
+        if (!workdir) continue;
+
+        const existing = this._stmts.getForumTopicByWorkdir.get(chatId, 'project', workdir);
+        if (existing) continue;
+
+        await this._createProjectTopic(chatId, workdir);
+      }
+    } catch {
+      // projects.json may not exist — that's fine
+    }
+  }
+
+  /**
+   * Create a single project topic in the forum.
+   */
+  async _createProjectTopic(chatId, workdir) {
+    const name = workdir.split('/').filter(Boolean).pop() || workdir;
+    try {
+      const topic = await this._callApi('createForumTopic', {
+        chat_id: chatId,
+        name: `📁 ${name}`,
+      });
+
+      this._stmts.addForumTopic.run(topic.message_thread_id, chatId, 'project', workdir);
+      this._forumTopics.set(`${chatId}:${topic.message_thread_id}`, { type: 'project', workdir, chatId });
+
+      // Pin project info (pass thread_id explicitly to avoid race condition)
+      const pinMsg = await this._sendMessage(chatId, this._t('forum_topic_project', {
+        name: this._escHtml(name),
+        path: this._escHtml(workdir),
+      }), {
+        message_thread_id: topic.message_thread_id,
+      });
+      if (pinMsg) {
+        this._callApi('pinChatMessage', { chat_id: chatId, message_id: pinMsg.message_id, disable_notification: true }).catch(() => {});
+      }
+
+      return topic.message_thread_id;
+    } catch (err) {
+      this.log.error(`[telegram] Failed to create project topic for ${name}: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Get topic info by threadId (from cache or DB).
+   */
+  _getTopicInfo(chatId, threadId) {
+    const key = `${chatId}:${threadId}`;
+    if (this._forumTopics.has(key)) return this._forumTopics.get(key);
+
+    const row = this._stmts.getForumTopic.get(threadId, chatId);
+    if (row) {
+      const info = { type: row.type, workdir: row.workdir, chatId };
+      this._forumTopics.set(key, info);
+      return info;
+    }
+    return null;
+  }
+
+  /**
+   * Main handler for messages in a forum supergroup.
+   * Routes based on which topic the message is in.
+   */
+  async _handleForumMessage(msg) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const threadId = msg.message_thread_id;
+    const text = (msg.text || '').trim();
+
+    // General topic (no thread_id) — handle basic commands
+    if (!threadId) {
+      if (text.startsWith('/')) return this._handleForumGeneralCommand(msg);
+      return;
+    }
+
+    const topicInfo = this._getTopicInfo(chatId, threadId);
+    if (!topicInfo) {
+      // Unknown topic — either user-created or the General topic
+      if (text.startsWith('/')) return this._handleForumGeneralCommand(msg);
+      if (text) await this._sendMessage(chatId, this._t('forum_unknown_topic'));
+      return;
+    }
+
+    switch (topicInfo.type) {
+      case 'project':
+        return this._handleForumProjectMessage(msg, topicInfo.workdir);
+      case 'tasks':
+        return this._handleForumTaskMessage(msg);
+      case 'activity':
+        // Read-only topic, ignore user messages
+        return;
+      default:
+        return;
+    }
+  }
+
+  /**
+   * Handle commands in the General topic or unknown topics.
+   */
+  async _handleForumGeneralCommand(msg) {
+    const chatId = msg.chat.id;
+    const text = (msg.text || '').trim();
+
+    if (text === '/status') return this._cmdStatus(chatId);
+    if (text === '/help') return this._cmdHelp(chatId, msg.from.id);
+    // Other commands can be added here
+  }
+
+  /**
+   * Handle messages in a Project topic — send to Claude.
+   */
+  async _handleForumProjectMessage(msg, workdir) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const text = (msg.text || '').trim();
+    const ctx = this._getContext(userId);
+
+    // Set project context
+    ctx.projectWorkdir = workdir;
+
+    // Handle project-specific commands
+    if (text.startsWith('/')) {
+      const [cmd, ...argParts] = text.split(/\s+/);
+      const args = argParts.join(' ');
+
+      switch (cmd) {
+        case '/new':
+          return this._forumNewSession(chatId, userId, workdir);
+        case '/history':
+          return this._forumShowHistory(chatId, userId, workdir);
+        case '/session': {
+          const idx = parseInt(args) - 1;
+          if (isNaN(idx) || idx < 0) return this._sendMessage(chatId, '💡 /session <i>N</i>');
+          return this._forumSwitchSession(chatId, userId, workdir, idx);
+        }
+        case '/files':
+          return this._cmdFiles(chatId, userId, args || '.');
+        case '/diff':
+          return this._cmdDiff(chatId, userId);
+        case '/log':
+          return this._cmdLog(chatId, userId, args);
+        case '/stop':
+          return this._cmdStop(chatId, userId);
+        case '/status':
+          return this._cmdStatus(chatId);
+        default:
+          // Unknown command — treat as message to Claude
+          break;
+      }
+    }
+
+    if (!text) {
+      if (msg.photo || msg.document) {
+        return this._handleMediaMessage(msg);
+      }
+      return this._sendMessage(chatId, this._t('forum_no_text'));
+    }
+
+    // Ensure session exists for this project
+    if (!ctx.sessionId) {
+      await this._forumNewSession(chatId, userId, workdir, true);
+    }
+
+    // Collect attachments
+    const attachments = ctx.pendingAttachments || [];
+    ctx.pendingAttachments = [];
+
+    // Send to Claude
+    this.emit('send_message', {
+      sessionId: ctx.sessionId,
+      text,
+      userId,
+      chatId,
+      threadId: msg.message_thread_id,
+      attachments,
+      callback: async (result) => {
+        if (result.error) {
+          await this._sendMessage(chatId, `❌ ${this._escHtml(result.error)}`);
+        }
+      },
+    });
+  }
+
+  /**
+   * Create a new session in a forum project topic.
+   */
+  async _forumNewSession(chatId, userId, workdir, silent = false) {
+    const ctx = this._getContext(userId);
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+    this._stmts.insertSession.run(id, 'Telegram Session', workdir);
+
+    ctx.sessionId = id;
+    ctx.projectWorkdir = workdir;
+    this._saveDeviceContext(userId);
+
+    if (!silent) {
+      await this._sendMessage(chatId, this._t('forum_session_started'));
+    }
+  }
+
+  /**
+   * Show session history for a project in forum mode.
+   */
+  async _forumShowHistory(chatId, userId, workdir) {
+    const ctx = this._getContext(userId);
+    const rows = this._stmts.getSessionsByWorkdir.all(workdir);
+
+    if (rows.length === 0) {
+      return this._sendMessage(chatId, this._t('forum_history_empty'));
+    }
+
+    let text = this._t('forum_history_title', { count: rows.length });
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const active = r.id === ctx.sessionId ? ' ◀️' : '';
+      const title = (r.title || 'Untitled').substring(0, 40);
+      const ago = this._timeAgo(r.updated_at);
+      text += `\n${i + 1}. ${this._escHtml(title)}  ·  ${r.msg_count} msgs  ·  ${ago}${active}`;
+    }
+    text += '\n\n/session <i>N</i> — switch to session';
+
+    await this._sendMessage(chatId, text);
+  }
+
+  /**
+   * Switch to a specific session by index (from /history list).
+   */
+  async _forumSwitchSession(chatId, userId, workdir, idx) {
+    const rows = this._stmts.getSessionsByWorkdir.all(workdir);
+
+    if (idx >= rows.length) {
+      return this._sendMessage(chatId, this._t('forum_task_not_found'));
+    }
+
+    const ctx = this._getContext(userId);
+    ctx.sessionId = rows[idx].id;
+    this._saveDeviceContext(userId);
+
+    const title = (rows[idx].title || 'Untitled').substring(0, 50);
+    await this._sendMessage(chatId, this._t('forum_switch_session', { title: this._escHtml(title) }));
+  }
+
+  /**
+   * Handle messages in the Tasks topic.
+   */
+  async _handleForumTaskMessage(msg) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const ctx = this._getContext(userId);
+    const text = (msg.text || '').trim();
+
+    if (!text.startsWith('/')) {
+      // Plain text in tasks topic — create a task from it
+      const title = text.substring(0, 200);
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      const workdir = ctx.projectWorkdir || null;
+
+      this._stmts.insertTask.run(id, title, workdir);
+
+      const workdirLine = workdir ? `\n📁 ${this._escHtml(workdir.split('/').filter(Boolean).pop())}` : '';
+      return this._sendMessage(chatId, this._t('forum_task_created', {
+        id: this._escHtml(id),
+        title: this._escHtml(title),
+        workdir_line: workdirLine,
+      }));
+    }
+
+    const [cmd, ...argParts] = text.split(/\s+/);
+    const args = argParts.join(' ').trim();
+
+    switch (cmd) {
+      case '/new': {
+        if (!args) return this._sendMessage(chatId, '💡 /new <i>task title</i>');
+        const title = args.substring(0, 200);
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const workdir = ctx.projectWorkdir || null;
+
+        this._stmts.insertTask.run(id, title, workdir);
+
+        const workdirLine = workdir ? `\n📁 ${this._escHtml(workdir.split('/').filter(Boolean).pop())}` : '';
+        return this._sendMessage(chatId, this._t('forum_task_created', {
+          id: this._escHtml(id),
+          title: this._escHtml(title),
+          workdir_line: workdirLine,
+        }));
+      }
+
+      case '/list': {
+        const rows = this._stmts.listTasksOrdered.all();
+
+        if (rows.length === 0) return this._sendMessage(chatId, this._t('tasks_empty'));
+
+        const icons = { backlog: '📋', todo: '📝', in_progress: '🔄', done: '✅', blocked: '🚫' };
+        const grouped = {};
+        for (const r of rows) {
+          if (!grouped[r.status]) grouped[r.status] = [];
+          grouped[r.status].push(r);
+        }
+
+        let listText = this._t('tasks_title', { count: rows.length }) + '\n\n';
+        for (const [status, items] of Object.entries(grouped)) {
+          listText += `${icons[status] || '•'} <b>${this._escHtml(status)}</b> (${items.length})\n`;
+          listText += items.map(t => `  · <code>${t.id.slice(-4)}</code> ${this._escHtml((t.title || '').substring(0, 45))}`).join('\n') + '\n\n';
+        }
+        return this._sendMessage(chatId, listText);
+      }
+
+      case '/done':
+      case '/start': {
+        const taskIdSearch = args.replace('#', '').replace(/[%_]/g, '');
+        if (!taskIdSearch) return this._sendMessage(chatId, `💡 ${cmd} <i>#id</i>`);
+
+        const task = this._stmts.findTaskByIdLike.get(`%${taskIdSearch}`);
+        if (!task) return this._sendMessage(chatId, this._t('forum_task_not_found'));
+
+        const newStatus = cmd === '/done' ? 'done' : 'in_progress';
+        this._stmts.updateTaskStatus.run(newStatus, task.id);
+
+        const icon = newStatus === 'done' ? '✅' : '🔄';
+        return this._sendMessage(chatId, this._t('forum_task_updated', {
+          icon,
+          id: this._escHtml(task.id.slice(-4)),
+          title: this._escHtml((task.title || '').substring(0, 50)),
+          status: newStatus,
+        }));
+      }
+
+      default:
+        return;
+    }
+  }
+
+  /**
+   * Disconnect forum — remove pairing, clean up DB + cache.
+   */
+  async _cmdForumDisconnect(chatId, userId) {
+    const device = this._stmts.getDevice.get(userId);
+    const forumChatId = device?.forum_chat_id;
+
+    // Clear forum_chat_id from device
+    this._stmts.setForumChatId.run(null, userId);
+
+    // Clean up forum_topics in DB and _forumTopics cache
+    if (forumChatId) {
+      this._stmts.deleteForumTopicsByChatId.run(forumChatId);
+      for (const key of this._forumTopics.keys()) {
+        if (key.startsWith(`${forumChatId}:`)) this._forumTopics.delete(key);
+      }
+    }
+
+    await this._sendMessage(chatId, this._t('forum_disconnected'));
+  }
+
+  /**
+   * Send a notification to the Activity topic in the forum.
+   */
+  async _notifyForumActivity(forumChatId, text) {
+    const topics = this._stmts.getForumTopics.all(forumChatId);
+    const activityTopic = topics.find(t => t.type === 'activity');
+    if (!activityTopic) return;
+
+    await this._sendMessage(forumChatId, text, {
+      message_thread_id: activityTopic.thread_id,
+    });
+  }
+
+  // ─── Inline New Chat / New Task ──────────────────────────────────────────
+
+  async _handleNewChat(chatId, userId) {
+    const ctx = this._getContext(userId);
+    const workdir = ctx.projectWorkdir || process.env.WORKDIR || './workspace';
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    this.db.prepare(
+      "INSERT INTO sessions (id, title, created_at, updated_at, workdir, model, engine) VALUES (?, ?, datetime('now'), datetime('now'), ?, 'sonnet', 'cli')"
+    ).run(id, 'Telegram Session', workdir);
+
+    ctx.sessionId = id;
+    ctx.composing = true;
+    ctx.pendingInput = null;
+    ctx.dialogPage = 0;
+    this._saveDeviceContext(userId);
+
+    await this._editScreen(chatId, ctx.screenMsgId,
+      this._t('new_session_created', { id: this._escHtml(id) }),
+      [[{ text: this._t('btn_cancel'), callback_data: 'd:overview' }]]
+    );
+  }
+
+  async _handleNewTask(chatId, userId) {
+    const ctx = this._getContext(userId);
+    ctx.pendingInput = 'task_title';
+    ctx.pendingTaskData = { workdir: ctx.projectWorkdir || null };
+    ctx.composing = false;
+
+    await this._editScreen(chatId, ctx.screenMsgId,
+      this._t('new_task_prompt'),
+      [[{ text: this._t('btn_cancel'), callback_data: ctx.projectWorkdir ? 't:list' : 'm:menu' }]]
+    );
+  }
+
+  async _handleSkipTaskDesc(chatId, userId) {
+    const ctx = this._getContext(userId);
+    ctx.pendingInput = null;
+    ctx.pendingTaskData = null;
+
+    // Go back to tasks list
+    return this._screenTasks(chatId, userId, ctx.projectWorkdir ? 't:list' : 't:all');
   }
 
   async _cmdNew(chatId, userId, args) {
@@ -3066,6 +3867,8 @@ class TelegramBot extends EventEmitter {
         filePath: null,         // current dir in file browser
         filePathCache: new Map(), // int key → absolute path
         composing: false,       // "write to chat" mode
+        pendingInput: null,     // pending input mode: 'task_title', 'task_description'
+        pendingTaskData: null,  // temp data for task creation flow
         // Phase 2 fields
         dialogPage: 0,           // dialog pagination offset
         pendingAttachments: [],   // files waiting for text message

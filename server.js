@@ -981,11 +981,12 @@ class WsProxy {
 
 // ─── Telegram Proxy (duck-typed WsProxy for Telegram bot streaming) ──────────
 class TelegramProxy {
-  constructor(bot, chatId, sessionId, userId) {
+  constructor(bot, chatId, sessionId, userId, threadId) {
     this._bot = bot;
     this._chatId = chatId;
     this._sessionId = sessionId;
     this._userId = userId;
+    this._threadId = threadId || null;
     this._buffer = '';
     this._progressMsgId = null;
     this._updateTimer = null;
@@ -994,13 +995,17 @@ class TelegramProxy {
     this._finished = false;
     // Typing indicator — sends "typing..." action every 4s
     this._typingInterval = setInterval(() => {
-      this._bot._callApi('sendChatAction', { chat_id: this._chatId, action: 'typing' }).catch(() => {});
+      const params = { chat_id: this._chatId, action: 'typing' };
+      if (this._threadId) params.message_thread_id = this._threadId;
+      this._bot._callApi('sendChatAction', params).catch(() => {});
     }, 4000);
     // Safety net: auto-stop typing after 30 min to prevent interval leak if
     // neither _finalize nor _sendError are called (e.g. subprocess crash)
     this._typingSafetyTimer = setTimeout(() => this._stopTyping(), 30 * 60 * 1000);
     // Send initial typing action immediately
-    this._bot._callApi('sendChatAction', { chat_id: this._chatId, action: 'typing' }).catch(() => {});
+    const initParams = { chat_id: this._chatId, action: 'typing' };
+    if (this._threadId) initParams.message_thread_id = this._threadId;
+    this._bot._callApi('sendChatAction', initParams).catch(() => {});
   }
 
   _stopTyping() {
@@ -1012,6 +1017,14 @@ class TelegramProxy {
       clearTimeout(this._typingSafetyTimer);
       this._typingSafetyTimer = null;
     }
+  }
+
+  /** Helper: send message with auto-injected thread_id for forum topics */
+  _tgSend(text, options = {}) {
+    if (this._threadId && !options.message_thread_id) {
+      options.message_thread_id = this._threadId;
+    }
+    return this._bot._sendMessage(this._chatId, text, options);
   }
 
   send(raw) {
@@ -1097,10 +1110,10 @@ class TelegramProxy {
     }
 
     try {
-      await this._bot._sendMessage(this._chatId, text, { parse_mode: 'HTML', reply_markup: replyMarkup });
+      await this._tgSend( text, { parse_mode: 'HTML', reply_markup: replyMarkup });
     } catch {
       // Fallback without HTML
-      await this._bot._sendMessage(this._chatId, text.replace(/<[^>]+>/g, ''), { reply_markup: replyMarkup }).catch(() => {});
+      await this._tgSend( text.replace(/<[^>]+>/g, ''), { reply_markup: replyMarkup }).catch(() => {});
     }
   }
 
@@ -1111,7 +1124,7 @@ class TelegramProxy {
       ctx.pendingAskRequestId = null;
       ctx.pendingAskQuestions = null;
     }
-    await this._bot._sendMessage(this._chatId, reason).catch(() => {});
+    await this._tgSend( reason).catch(() => {});
     // Resume typing indicator (guard against double-start)
     if (!this._finished && !this._typingInterval) {
       this._typingInterval = setInterval(() => {
@@ -1127,7 +1140,7 @@ class TelegramProxy {
     const detail = data.detail ? `\n${this._bot._escHtml(data.detail)}` : '';
     const progress = data.progress ? ` (${data.progress.current}/${data.progress.total})` : '';
     const text = `${icon} ${this._bot._escHtml(data.title)}${progress}${detail}`;
-    await this._bot._sendMessage(this._chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    await this._tgSend( text, { parse_mode: 'HTML' }).catch(() => {});
   }
 
   _scheduleUpdate() {
@@ -1178,7 +1191,7 @@ class TelegramProxy {
           });
         });
       } else {
-        const result = await this._bot._sendMessage(this._chatId, text.slice(0, 4096), { parse_mode: 'HTML', reply_markup: progressMarkup });
+        const result = await this._tgSend( text.slice(0, 4096), { parse_mode: 'HTML', reply_markup: progressMarkup });
         if (result && result.message_id) {
           this._progressMsgId = result.message_id;
         }
@@ -1220,8 +1233,8 @@ class TelegramProxy {
         const html = this._bot._mdToHtml(this._buffer);
         const chunks = this._bot._chunkForTelegram(html, MAX_MESSAGE_LENGTH - 100);
         for (const chunk of chunks) {
-          await this._bot._sendMessage(this._chatId, chunk, { parse_mode: 'HTML' }).catch(() => {
-            return this._bot._sendMessage(this._chatId, chunk.replace(/<[^>]+>/g, ''));
+          await this._tgSend(chunk, { parse_mode: 'HTML' }).catch(() => {
+            return this._tgSend(chunk.replace(/<[^>]+>/g, ''));
           });
         }
       } else {
@@ -1233,8 +1246,8 @@ class TelegramProxy {
         const previewHtml = this._bot._mdToHtml(cleanPreview);
         const totalChars = rawLen > 1000 ? `${Math.round(rawLen / 1000)}k` : rawLen;
         const moreIndicator = `\n\n<i>···  ${totalChars} chars — tap 📄 to expand  ···</i>`;
-        await this._bot._sendMessage(this._chatId, previewHtml + moreIndicator, { parse_mode: 'HTML' }).catch(() => {
-          return this._bot._sendMessage(this._chatId, (cleanPreview + `\n\n···  ${totalChars} chars — tap 📄 to expand  ···`).replace(/<[^>]+>/g, ''));
+        await this._tgSend(previewHtml + moreIndicator, { parse_mode: 'HTML' }).catch(() => {
+          return this._tgSend((cleanPreview + `\n\n···  ${totalChars} chars — tap 📄 to expand  ···`).replace(/<[^>]+>/g, ''));
         });
       }
     }
@@ -1247,7 +1260,7 @@ class TelegramProxy {
       ...(isLarge ? [{ text: '📄 Full', callback_data: 'cm:full' }] : []),
       { text: '🏠 Menu', callback_data: 'm:menu' }
     ];
-    await this._bot._sendMessage(this._chatId,
+    await this._tgSend(
       `✅ <b>Done</b>${duration}${toolsSummary}`,
       {
         parse_mode: 'HTML',
@@ -1274,7 +1287,7 @@ class TelegramProxy {
       } catch (e) { /* ignore */ }
     }
 
-    await this._bot._sendMessage(this._chatId,
+    await this._tgSend(
       `❌ <b>Error:</b> ${this._bot._escHtml(data.error || 'Unknown error')}`,
       {
         parse_mode: 'HTML',
@@ -3668,7 +3681,7 @@ function _clearTelegramAskState(sessionId) {
 
 // ─── Process a chat message from Telegram ────────────────────────────────────
 // Reuses the same core logic as processChat but without WebSocket dependency.
-async function processTelegramChat({ sessionId, text, userId, chatId, attachments }) {
+async function processTelegramChat({ sessionId, text, userId, chatId, threadId, attachments }) {
   if (!telegramBot) return;
 
   // Check if session is busy
@@ -3684,7 +3697,7 @@ async function processTelegramChat({ sessionId, text, userId, chatId, attachment
     return;
   }
 
-  const proxy = new TelegramProxy(telegramBot, chatId, sessionId, userId);
+  const proxy = new TelegramProxy(telegramBot, chatId, sessionId, userId, threadId);
   const abortController = new AbortController();
 
   activeTasks.set(sessionId, {
@@ -3864,10 +3877,10 @@ function _attachTelegramListeners(bot) {
   });
 
   // Phase 2: Process messages sent from Telegram to Claude
-  bot.on('send_message', async ({ sessionId, text, userId, chatId, attachments, callback }) => {
+  bot.on('send_message', async ({ sessionId, text, userId, chatId, threadId, attachments, callback }) => {
     try {
       if (callback) callback({ ok: true });
-      await processTelegramChat({ sessionId, text, userId, chatId, attachments });
+      await processTelegramChat({ sessionId, text, userId, chatId, threadId, attachments });
     } catch (err) {
       console.error('[Telegram] send_message error:', err.message);
       // Note: callback already called before processTelegramChat — errors are

@@ -143,6 +143,23 @@ Type a message to Claude directly from Telegram. You see a real-time typing indi
 **Multi-Device Pairing**
 Pair your phone, your tablet, your laptop — all at once. Control the same Claude Code Studio instance from anywhere. Each device gets push notifications when tasks finish, with inline buttons: [View Result] [Continue] [Menu].
 
+**Forum Mode — Telegram as Your Project Dashboard**
+
+Your Telegram supergroup becomes a structured project workspace. Each project gets its own topic thread. Tasks live in a dedicated Tasks topic. Activity notifications flow into an Activity topic. It's not just a remote control — it's an organized command center for all your projects.
+
+**How to set up:**
+1. Create a Telegram supergroup with Topics enabled
+2. Type `/connect` in the group — Studio pairs instantly
+3. Studio auto-creates the structure: a **Tasks** topic for task management, an **Activity** topic for notifications, and a separate topic for each of your projects
+
+**Project topics** — each project directory gets its own thread. Send a message in a project topic and Claude works in that project's context. Use `/new` to start a fresh session, `/history` to see past sessions, `/session N` to switch between them, `/files` to browse the directory, `/diff` for recent changes, `/log` for git history, `/stop` to halt a running task. It's like having the full Studio experience inside each Telegram thread.
+
+**Tasks topic** — your Kanban board, inside Telegram. Type a task title and it's created instantly. Use `/list` to see all tasks, `/done ID` to mark one complete, `/start ID` to queue it for execution. Manage your entire backlog without ever opening the browser.
+
+**Activity topic** — every notification (task completed, task failed, session events) gets posted here automatically. One place to see everything that happened while you were away.
+
+**Inline creation** — in your private chat with the bot, use the **New Chat** and **New Task** buttons to create items directly. No commands to memorize — just tap and type.
+
 **Why This Matters**
 
 You queue 10 refactoring tasks at 9pm. Instead of staring at your laptop, you go to the gym. At 10:15pm, your phone buzzes: "Task 3 complete". You tap [View] and see the changes. You add a comment: "Next, add error handling for the network case." Claude gets it immediately and starts task 4. Two hours later, everything is done. You tap [View Final] and review the full output in Telegram before you even sit at your desk.
@@ -379,6 +396,7 @@ After setup, Claude Code CLI will use your OpenRouter API key and the model you 
 | 🕐 Scheduler | Time-based automation: one-time or recurring (hourly/daily/weekly/monthly), up to 5 parallel workers |
 | ⚡ Slash commands | Saved prompt shortcuts with `/` autocomplete |
 | 📱 Telegram bot | Control Claude from your phone — notifications, commands, live session bridge, ask_user forwarding |
+| 🏛 Telegram Forum Mode | Supergroup Topics integration — each project gets its own thread, with Tasks and Activity topics for structured management |
 | 🔔 Push notifications | Task finished? Get a notification with [View] [Continue] buttons |
 | 📡 Session bridge | Send messages from Telegram, responses stream to both phone and browser simultaneously |
 | ❓ Ask User in Telegram | Claude's questions forwarded to Telegram — answer with buttons or free text |
