@@ -1914,9 +1914,16 @@ function buildSystemPrompt(skillIds, config) {
 const CLASSIFY_TIMEOUT_MS = 30000;
 
 async function classifyTask(userMessage, currentSkills, config, workdir) {
+  // Filter out meta/system skills that are never useful for task classification
+  const CLASSIFIER_SKIP = /^auto-mode$|:cancel$|:help$|:doctor$|:setup$|:omc-setup$|:release$|:skill$|:learner$|:local-skills-setup$|:mcp-setup$|:hud$|:note$|:psm$|:project-session-manager$|:learn-about-omc$/;
   const catalog = Object.entries(config.skills || {})
-    .filter(([id]) => id !== 'auto-mode')
-    .map(([id, s]) => `- ${id}: ${(s.label || id).replace(/^\S+\s/, '')} — ${s.description || ''}`)
+    .filter(([id]) => !CLASSIFIER_SKIP.test(id))
+    .map(([id, s]) => {
+      const label = (s.label || id).replace(/^\S+\s/, '');
+      const desc = s.description || '';
+      const kw = Array.isArray(s.keywords) && s.keywords.length ? ` [${s.keywords.join(', ')}]` : '';
+      return `- ${id}: ${label} — ${desc}${kw}`;
+    })
     .join('\n');
 
   const currentCtx = currentSkills.length
@@ -1941,7 +1948,7 @@ async function classifyTask(userMessage, currentSkills, config, workdir) {
       maxTurns: 1,
       allowedTools: ['_none'],
       mcpServers: {},
-      systemPrompt: 'You are a task classifier. Analyze the user task and:\n1. Select 0-4 most relevant specialist IDs from the list\n2. Generate a short chat title (3-7 words, in the SAME language as user\'s message)\n\nRules:\n- Only select a skill if it will materially improve the answer for this exact task.\n- Prefer narrow, task-specific skills over broad or generic ones.\n- Avoid generic meta/introduction/help skills unless the user is explicitly asking about that system itself.\n- For simple general-knowledge questions, pricing lookups, or web facts, it is usually correct to select no extra skills.\n- Do not select skills just because their description sounds broadly applicable.\n\nReturn ONLY a JSON object: {"skills":["id1","id2"],"title":"Short title here"}\nNo explanation, no markdown.',
+      systemPrompt: 'You are a task classifier. Analyze the user task and:\n1. Select 1-4 most relevant specialist IDs from the list\n2. Generate a short chat title (3-7 words, in the SAME language as user\'s message)\n\nRules:\n- Match the INTENT and DOMAIN of the task to specialists. The user may write in any language — match meaning, not exact words.\n- When the task clearly relates to a domain (design, UI, UX, security, backend, frontend, etc.) — always select ALL matching specialists from the list, including plugin specialists (IDs starting with "plugin:").\n- For coding tasks — select the most relevant engineering specialist(s).\n- Prefer selecting a relevant specialist over skipping. When in doubt, include it.\n- Plugin skills (IDs like "plugin:name:skill") are equally valid — select them when their description matches the task.\n- Skip only: generic meta/system/setup/cancel skills, and pure general-knowledge questions with no coding/design/engineering aspect.\n- Use the keywords field [in brackets] (if present) to improve matching — they describe typical tasks for each specialist.\n- Return the EXACT skill IDs as shown in the list. Copy them precisely, including any "plugin:" prefix.\n\nReturn ONLY a JSON object: {"skills":["id1","id2"],"title":"Short title here"}\nNo explanation, no markdown.',
     })
     .onText(t => { fullText += t; })
     .onDone(() => {
@@ -1952,14 +1959,19 @@ async function classifyTask(userMessage, currentSkills, config, workdir) {
         const match = fullText.match(/\{[\s\S]*\}/);
         if (match) {
           const parsed = JSON.parse(match[0]);
-          const skills = (parsed.skills || []).filter(id => typeof id === 'string' && config.skills[id] && id !== 'auto-mode');
+          const rawSkills = parsed.skills || [];
+          const skills = rawSkills.filter(id => typeof id === 'string' && config.skills[id] && id !== 'auto-mode');
+          const rejected = rawSkills.filter(id => typeof id === 'string' && !config.skills[id]);
           const title = typeof parsed.title === 'string' ? parsed.title.trim().substring(0, 80) : '';
+          if (rejected.length) log.warn('[classify] Haiku returned unknown skill IDs', { rejected });
+          log.info('[classify] raw response', { rawSkills, accepted: skills, title });
           resolve({
             skills: skills.length > 0 && config.skills['auto-mode'] ? ['auto-mode', ...skills] : skills,
             title,
           });
           return;
         }
+        log.warn('[classify] No JSON found in Haiku response', { fullText: fullText.substring(0, 300) });
         resolve(fallback);
       } catch {
         resolve(fallback);
@@ -4298,7 +4310,7 @@ wss.on('connection', (ws) => {
           const merged = new Set(sIds);
           for (const s of classification.skills) merged.add(s);
           effectiveSkills = [...merged];
-          log.info('[classify] done', { newSkills: classification.skills, merged: effectiveSkills, title: classifiedTitle });
+          log.info('[classify] done', { newSkills: classification.skills, merged: effectiveSkills, title: classifiedTitle, msgPreview: userMessage.substring(0, 120) });
           if (effectiveSkills.length > 0) {
             proxy.send(JSON.stringify({ type:'skills_auto', skills: effectiveSkills, tabId: effectiveTabId }));
           }
