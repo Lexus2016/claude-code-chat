@@ -3265,21 +3265,22 @@ class TelegramBot extends EventEmitter {
       if (now - (ctx.lastNotifiedAt || 0) < 5000) continue;
       ctx.lastNotifiedAt = now;
 
-      try {
-        await this._sendMessage(device.telegram_chat_id, text, {
-          parse_mode: 'HTML',
-          reply_markup: JSON.stringify(keyboard),
-        });
-      } catch (err) {
-        this.log.warn(`[telegram] Notify failed for ${device.telegram_user_id}: ${err.message}`);
-      }
-
-      // Also post to forum Activity topic if connected
       if (device.forum_chat_id) {
+        // Forum mode — send only to forum Activity topic, skip private chat
         try {
           await this._notifyForumActivity(device.forum_chat_id, text, sessionId);
         } catch (err) {
           this.log.warn(`[telegram] Forum activity notify failed: ${err.message}`);
+        }
+      } else {
+        // Single mode — send to private chat
+        try {
+          await this._sendMessage(device.telegram_chat_id, text, {
+            parse_mode: 'HTML',
+            reply_markup: JSON.stringify(keyboard),
+          });
+        } catch (err) {
+          this.log.warn(`[telegram] Notify failed for ${device.telegram_user_id}: ${err.message}`);
         }
       }
     }
