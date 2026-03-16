@@ -3521,7 +3521,8 @@ class TelegramBot extends EventEmitter {
 
     // Handle project-specific commands
     if (text.startsWith('/')) {
-      const [cmd, ...argParts] = text.split(/\s+/);
+      const [rawCmd, ...argParts] = text.split(/\s+/);
+      const cmd = rawCmd.toLowerCase().replace(/@\w+$/, '');
       const args = argParts.join(' ');
 
       switch (cmd) {
@@ -3798,7 +3799,8 @@ class TelegramBot extends EventEmitter {
       }));
     }
 
-    const [cmd, ...argParts] = text.split(/\s+/);
+    const [rawCmd, ...argParts] = text.split(/\s+/);
+    const cmd = rawCmd.toLowerCase().replace(/@\w+$/, '');
     const args = argParts.join(' ').trim();
 
     switch (cmd) {
