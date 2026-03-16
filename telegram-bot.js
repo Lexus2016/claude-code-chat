@@ -3162,7 +3162,34 @@ class TelegramBot extends EventEmitter {
           }
         );
       } else {
-        await this._sendMessage(chatId, this._t('compose_select_first_short'));
+        // Auto-restore session for media, same as text handler
+        const workdir = ctx.projectWorkdir || process.env.WORKDIR || './workspace';
+        const lastSession = this._stmts.getSessionsByWorkdir.all(workdir);
+        if (lastSession.length > 0) {
+          ctx.sessionId = lastSession[0].id;
+          this._saveDeviceContext(userId);
+        } else {
+          const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          this.db.prepare(
+            "INSERT INTO sessions (id, title, created_at, updated_at, workdir, model, engine) VALUES (?, ?, datetime('now'), datetime('now'), ?, 'sonnet', 'cli')"
+          ).run(id, 'Telegram Session', workdir);
+          ctx.sessionId = id;
+          this._saveDeviceContext(userId);
+        }
+        // Store as pending attachment
+        ctx.pendingAttachments = ctx.pendingAttachments || [];
+        ctx.pendingAttachments.push(attachment);
+        await this._sendMessage(chatId,
+          `📎 <b>${this._escHtml(fileName)}</b> attached\nNow send a text message with your question about this file.`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: JSON.stringify({
+              inline_keyboard: [[
+                { text: '❌ Cancel', callback_data: 'd:clear_attach' },
+              ]],
+            }),
+          }
+        );
       }
     } catch (err) {
       this.log.error(`[telegram] Media handling error: ${err.message}`);
@@ -3266,11 +3293,23 @@ class TelegramBot extends EventEmitter {
       ctx.lastNotifiedAt = now;
 
       if (device.forum_chat_id) {
-        // Forum mode — send only to forum Activity topic, skip private chat
+        // Forum mode — try forum Activity topic first, fallback to private chat
+        let forumOk = false;
         try {
-          await this._notifyForumActivity(device.forum_chat_id, text, sessionId);
+          forumOk = await this._notifyForumActivity(device.forum_chat_id, text, sessionId);
         } catch (err) {
           this.log.warn(`[telegram] Forum activity notify failed: ${err.message}`);
+        }
+        if (!forumOk) {
+          // Fallback: Activity topic missing or failed — send to private chat
+          try {
+            await this._sendMessage(device.telegram_chat_id, text, {
+              parse_mode: 'HTML',
+              reply_markup: JSON.stringify(keyboard),
+            });
+          } catch (err) {
+            this.log.warn(`[telegram] Notify fallback failed for ${device.telegram_user_id}: ${err.message}`);
+          }
         }
       } else {
         // Single mode — send to private chat
@@ -4070,7 +4109,7 @@ class TelegramBot extends EventEmitter {
   async _notifyForumActivity(forumChatId, text, sessionId) {
     const topics = this._stmts.getForumTopics.all(forumChatId);
     const activityTopic = topics.find(t => t.type === 'activity');
-    if (!activityTopic) return;
+    if (!activityTopic) return false;
 
     // Build action buttons — find project topic for this session
     const options = { message_thread_id: activityTopic.thread_id, parse_mode: 'HTML' };
@@ -4089,6 +4128,7 @@ class TelegramBot extends EventEmitter {
     }
 
     await this._sendMessage(forumChatId, text, options);
+    return true;
   }
 
   // ─── Inline New Chat / New Task ──────────────────────────────────────────
