@@ -1168,9 +1168,9 @@ class TelegramProxy {
       ? `\n🔧 ${this._bot._escHtml(this._toolsUsed.slice(-3).join(', '))}`
       : '';
 
-    // Session indicator for forum — cache title on first use
+    // Session indicator — cache title on first use
     let sessionTag = '';
-    if (this._threadId && this._sessionId) {
+    if (this._sessionId) {
       if (this._sessionTitle === null) {
         try {
           const sess = db.prepare('SELECT title FROM sessions WHERE id = ?').get(this._sessionId);
@@ -1275,9 +1275,9 @@ class TelegramProxy {
     const duration = data.duration ? ` (${Math.round(data.duration / 1000)}s)` : '';
     const toolsSummary = this._toolsUsed.length ? `\n🔧 Tools: ${this._bot._escHtml([...new Set(this._toolsUsed)].join(', '))}` : '';
 
-    // Session indicator for forum context
+    // Session indicator
     let sessionLine = '';
-    if (this._threadId && this._sessionId) {
+    if (this._sessionId) {
       try {
         const sess = db.prepare('SELECT title FROM sessions WHERE id = ?').get(this._sessionId);
         if (sess?.title) {

@@ -1401,6 +1401,7 @@ class TelegramBot extends EventEmitter {
       case '/log':     return this._cmdLog(chatId, userId, args);
       case '/notify':  return this._cmdNotify(chatId, userId, args);
       case '/stop':    return this._cmdStop(chatId, userId);
+      case '/info':    return this._cmdInfo(chatId, userId);
       case '/new':     return this._cmdNew(chatId, userId, args.join(' '));
       case '/back':    return this._cmdBack(chatId, userId);
       case '/unlink':  return this._cmdUnlink(chatId, userId);
@@ -2025,8 +2026,40 @@ class TelegramBot extends EventEmitter {
     }
 
     if (!ctx.sessionId) {
-      await this._sendMessage(chatId, this._t('compose_select_first'));
-      return;
+      // Auto-restore: find last session for current project or create new one
+      const workdir = ctx.projectWorkdir || process.env.WORKDIR || './workspace';
+      const lastSession = this._stmts.getSessionsByWorkdir.all(workdir);
+      if (lastSession.length > 0) {
+        ctx.sessionId = lastSession[0].id;
+        this._saveDeviceContext(userId);
+      } else {
+        // Create new session automatically
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        this.db.prepare(
+          "INSERT INTO sessions (id, title, created_at, updated_at, workdir, model, engine) VALUES (?, ?, datetime('now'), datetime('now'), ?, 'sonnet', 'cli')"
+        ).run(id, 'Telegram Session', workdir);
+        ctx.sessionId = id;
+        this._saveDeviceContext(userId);
+      }
+    }
+
+    // Session-project safety: ensure session belongs to current project
+    if (ctx.projectWorkdir && ctx.sessionId) {
+      const sess = this.db.prepare('SELECT workdir FROM sessions WHERE id = ?').get(ctx.sessionId);
+      if (sess && sess.workdir && sess.workdir !== ctx.projectWorkdir) {
+        // Session belongs to different project — switch to correct session
+        const lastForProject = this._stmts.getSessionsByWorkdir.all(ctx.projectWorkdir);
+        if (lastForProject.length > 0) {
+          ctx.sessionId = lastForProject[0].id;
+        } else {
+          const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          this.db.prepare(
+            "INSERT INTO sessions (id, title, created_at, updated_at, workdir, model, engine) VALUES (?, ?, datetime('now'), datetime('now'), ?, 'sonnet', 'cli')"
+          ).run(id, 'Telegram Session', ctx.projectWorkdir);
+          ctx.sessionId = id;
+        }
+        this._saveDeviceContext(userId);
+      }
     }
 
     // Collect any pending attachments
@@ -2335,7 +2368,7 @@ class TelegramBot extends EventEmitter {
       [{ text: this._t('btn_git_log'), callback_data: 'pm:git' }, { text: this._t('btn_diff'), callback_data: 'pm:diff' }],
       [{ text: this._t('btn_tasks'), callback_data: 't:list' }],
       [{ text: this._t('btn_new_chat'), callback_data: 'c:new' }, { text: this._t('btn_new_task'), callback_data: 't:new' }],
-      [{ text: this._t('btn_back_projects'), callback_data: 'p:list' }],
+      [{ text: this._t('btn_back_projects'), callback_data: 'p:list' }, { text: '🏠 Menu', callback_data: 'm:menu' }],
     ];
 
     await this._editScreen(chatId, ctx.screenMsgId, `📁 <b>${this._escHtml(name)}</b>${this._t('project_choose')}`, keyboard);
@@ -2523,6 +2556,7 @@ class TelegramBot extends EventEmitter {
 
     const keyboard = [
       [{ text: this._t('btn_write'), callback_data: 'cm:compose' }, { text: this._t('btn_all_messages'), callback_data: 'd:all:0' }],
+      [{ text: '📁 Files', callback_data: 'f:.' }, { text: '📋 Diff', callback_data: 'pm:diff' }, { text: '📜 Log', callback_data: 'pm:git' }],
       [{ text: '🔄', callback_data: 'd:overview' }, { text: this._t('btn_back_chats'), callback_data: 'c:list:0' }, { text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
     ];
 
@@ -2721,8 +2755,18 @@ class TelegramBot extends EventEmitter {
 
     } else if (action === 'compose') {
       ctx.composing = true;
+      // Show session context in compose mode
+      let composeText = this._t('compose_mode');
+      if (ctx.sessionId) {
+        const sess = this.db.prepare('SELECT title, workdir FROM sessions WHERE id = ?').get(ctx.sessionId);
+        if (sess) {
+          const sessTitle = (sess.title || 'Untitled').substring(0, 40);
+          const projName = (sess.workdir || '').split('/').filter(Boolean).pop() || '';
+          composeText += `\n\n${projName ? `📁 ${this._escHtml(projName)} → ` : ''}💬 ${this._escHtml(sessTitle)}`;
+        }
+      }
       await this._editScreen(chatId, ctx.screenMsgId,
-        this._t('compose_mode'),
+        composeText,
         [[{ text: this._t('btn_cancel'), callback_data: 'cm:cancel' }]]
       );
 
@@ -4079,6 +4123,39 @@ class TelegramBot extends EventEmitter {
 
     // Go back to tasks list
     return this._screenTasks(chatId, userId, ctx.projectWorkdir ? 't:list' : 't:all');
+  }
+
+  async _cmdInfo(chatId, userId) {
+    const ctx = this._getContext(userId);
+    const workdir = ctx.projectWorkdir || process.env.WORKDIR || './workspace';
+    const projectName = workdir.split('/').filter(Boolean).pop() || workdir;
+
+    let text = `📁 <b>${this._escHtml(projectName)}</b>\n📂 <code>${this._escHtml(workdir)}</code>\n`;
+
+    if (ctx.sessionId) {
+      const sess = this.db.prepare('SELECT title, updated_at FROM sessions WHERE id = ?').get(ctx.sessionId);
+      if (sess) {
+        const title = (sess.title || 'Untitled').substring(0, 45);
+        const ago = this._timeAgo(sess.updated_at);
+        const msgCount = this.db.prepare('SELECT COUNT(*) as c FROM messages WHERE session_id = ?').get(ctx.sessionId)?.c || 0;
+        text += `\n💬 <b>${this._escHtml(title)}</b>\n📊 ${msgCount} msg · ${ago}`;
+      }
+    } else {
+      text += '\n💬 <i>No active session</i>';
+    }
+
+    const rows = this._stmts.getSessionsByWorkdir.all(workdir);
+    text += `\n📜 ${rows.length} total sessions`;
+
+    const keyboard = [
+      [{ text: this._t('btn_chats'), callback_data: 'c:list:0' },
+       { text: this._t('btn_new_chat'), callback_data: 'c:new' }],
+      [{ text: '🏠 Menu', callback_data: 'm:menu' }],
+    ];
+
+    await this._sendMessage(chatId, text, {
+      reply_markup: JSON.stringify({ inline_keyboard: keyboard }),
+    });
   }
 
   async _cmdNew(chatId, userId, args) {
