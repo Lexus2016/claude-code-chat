@@ -1,4 +1,5 @@
-FROM node:20-bookworm
+ARG BASE_IMAGE=node:20-bookworm
+FROM ${BASE_IMAGE}
 
 RUN apt-get update && apt-get install -y \
     git curl python3 python3-pip build-essential \

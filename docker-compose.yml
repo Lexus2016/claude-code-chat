@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   claude-chat:
-    build: .
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${MIRROR:+${MIRROR}/}node:20-bookworm
     container_name: claude-code-studio
     restart: unless-stopped
     ports:
