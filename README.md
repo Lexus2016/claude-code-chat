@@ -64,6 +64,9 @@ git clone https://github.com/Lexus2016/claude-code-studio.git
 cd claude-code-studio
 cp .env.example .env
 docker compose up -d --build
+
+# Enterprise: pull base image from a private registry (Artifactory, Nexus, Harbor)
+MIRROR=my-registry.company.com docker compose up -d --build
 ```
 
 </details>
@@ -252,7 +255,7 @@ npx github:Lexus2016/claude-code-studio    # launch as usual
 | **Dashboard** | Activity heatmap, tool usage, model distribution, Automation Index, peak hours |
 | **Reliability** | Self-healing sessions, crash protection, atomic writes, instant stop |
 | **Security** | bcrypt auth, AES-256-GCM SSH, Helmet.js, path traversal protection, XSS/SQLi prevention |
-| **Platform** | Windows/macOS/Linux, Docker, 3 languages (EN/UA/RU), OpenRouter support |
+| **Platform** | Windows/macOS/Linux, Docker (registry mirror support), 3 languages (EN/UA/RU), OpenRouter support |
 
 ---
 
