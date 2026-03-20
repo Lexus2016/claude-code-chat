@@ -3965,6 +3965,97 @@ app.put('/api/sessions/:id', (req, res) => {
   }
   res.json({ok:true});
 });
+// ─── Compact session → create new session with summary ───────────────────
+app.post('/api/sessions/:id/compact', async (req, res) => {
+  const sid = req.params.id;
+  const sess = stmts.getSession.get(sid);
+  if (!sess) return res.status(404).json({ error: 'Session not found' });
+
+  // Fetch all text messages (skip tool messages — they're noise for summary)
+  const msgs = stmts.getMsgs.all(sid).filter(m => m.type === 'text' && m.content);
+  if (msgs.length === 0) return res.status(400).json({ error: 'No messages to compact' });
+
+  // Build conversation transcript (cap at ~80K chars to stay within context)
+  const MAX_TRANSCRIPT = 80000;
+  let transcript = '';
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    const prefix = m.role === 'user' ? '👤 User' : '🤖 Assistant';
+    const chunk = `${prefix}:\n${m.content}\n\n`;
+    if (transcript.length + chunk.length > MAX_TRANSCRIPT) {
+      transcript += `\n[...${msgs.length - i} more messages truncated...]\n`;
+      break;
+    }
+    transcript += chunk;
+  }
+
+  const compactPrompt = `Here is a conversation transcript from a coding session. Create a concise but comprehensive summary that captures:
+
+1. **Context**: What project/codebase was being worked on
+2. **Key decisions**: Important technical decisions made
+3. **What was built/changed**: Files modified, features added, bugs fixed
+4. **Current state**: Where things stand now
+5. **Open items**: What still needs to be done or was discussed but not started
+
+Be structured and actionable — this summary will be used as context to continue the work in a new chat session.
+
+---
+CONVERSATION TRANSCRIPT:
+${transcript}`;
+
+  // Use CLI (Haiku) for fast summarization — no tools needed
+  const cli = new ClaudeCLI({ cwd: sess.workdir || WORKDIR });
+  let summaryText = '';
+
+  try {
+    await new Promise((resolve, reject) => {
+      const ac = new AbortController();
+      const timeout = setTimeout(() => { ac.abort(); reject(new Error('Compact timed out')); }, 120000);
+
+      cli.send({
+        prompt: compactPrompt,
+        model: 'haiku',
+        maxTurns: 1,
+        tools: '',
+        mcpServers: {},
+        abortController: ac,
+      })
+        .onText(t => { summaryText += t; })
+        .onError(err => { log.error('compact onError', { sid, err }); })
+        .onDone(() => { clearTimeout(timeout); resolve(); });
+    });
+  } catch (err) {
+    log.error('compact failed', { sid, err: err.message });
+    return res.status(500).json({ error: 'Failed to generate summary: ' + err.message });
+  }
+
+  if (!summaryText.trim()) {
+    return res.status(500).json({ error: 'Empty summary generated' });
+  }
+
+  // Create new session inheriting settings from the original
+  const newId = genId();
+  const compactTitle = (sess.title || 'Chat').substring(0, 150) + ' (compact)';
+  stmts.createSession.run(
+    newId,
+    compactTitle,
+    sess.active_mcp || '[]',
+    sess.active_skills || '[]',
+    sess.mode || 'auto',
+    sess.agent_mode || 'single',
+    sess.model || 'sonnet',
+    sess.engine || 'cli',
+    sess.workdir || null
+  );
+
+  // Insert the compact summary as the first user message so Claude gets context
+  const contextMsg = `# 📋 Context from previous session\n\nThis is a continuation of a previous chat session. Here is the compact summary:\n\n${summaryText.trim()}`;
+  stmts.addMsg.run(newId, 'user', 'text', contextMsg, null, null, null, null);
+
+  log.info('session compacted', { originalId: sid, newId, msgCount: msgs.length, summaryLen: summaryText.length });
+  res.json({ id: newId, title: compactTitle, originalId: sid });
+});
+
 app.get('/api/sessions/:id/tasks-count', (req,res) => { res.json(stmts.countTasksBySession.get(req.params.id)); });
 app.delete('/api/sessions/:id', (req,res) => {
   const sid = req.params.id;

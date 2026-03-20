@@ -958,6 +958,14 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .sess-skill-chip { font-size:10px; color:var(--accent2); background:rgba(124,106,239,.12); border:1px solid rgba(124,106,239,.25); padding:1px 7px; border-radius:4px; white-space:nowrap; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
 .sess-skill-auto { color:var(--orange); background:rgba(229,164,53,.12); border-color:rgba(229,164,53,.3); }
 
+/* ─── Compact button ─── */
+.sess-compact-btn { font-size:11px; color:var(--text-dim); background:transparent; border:1px solid var(--border); padding:1px 7px; border-radius:4px; cursor:pointer; flex-shrink:0; transition:all .15s; display:inline-flex; align-items:center; gap:3px; }
+.sess-compact-btn:hover { color:var(--accent2); border-color:rgba(124,106,239,.4); background:rgba(124,106,239,.08); }
+.sess-compact-btn.loading { pointer-events:none; opacity:.8; }
+.sess-compact-btn.loading span { display:none; }
+.sess-compact-btn.loading::after { content:attr(data-loading); animation:compactPulse 1.2s ease-in-out infinite; }
+@keyframes compactPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
+
 /* ─── Retry indicators ─── */
 .retry-badge { font-size:11px; color:var(--text-dim); opacity:.65; margin-top:3px; letter-spacing:.01em; }
 .msg-retry-indicator { margin:2px 12px 6px; font-size:11px; color:var(--text-dim); opacity:.6; }
@@ -1168,14 +1176,19 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .qd-btn:hover { background: var(--s3); }
 .qd-edit:hover { color: var(--accent2); }
 .qd-del:hover { color: var(--red); }
-.queue-editor { display: flex; flex-direction: column; gap: 5px; margin: 4px 0 2px; }
-.queue-edit-area { width: 100%; box-sizing: border-box; background: var(--s2); border: 1px solid var(--accent); border-radius: 8px; color: var(--text); font-size: 14px; font-family: inherit; padding: 10px 12px; resize: vertical; outline: none; min-height: 80px; max-height: 60vh; line-height: 1.55; }
-.queue-edit-area:focus { box-shadow: 0 0 0 2px rgba(124,106,239,.18); }
-.queue-edit-btns { display: flex; gap: 6px; justify-content: flex-end; }
-.qe-save { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 4px 13px; font-size: 12px; font-family: inherit; cursor: pointer; transition: background .12s; }
-.qe-save:hover { background: var(--accent2); }
-.qe-cancel { background: var(--s3); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 4px 13px; font-size: 12px; font-family: inherit; cursor: pointer; transition: color .12s; }
-.qe-cancel:hover { color: var(--text); }
+/* ─── Queue edit: expanded editor ─── */
+.mw.editing { max-width: 100%; align-self: stretch; padding-right: 0; transition: max-width .2s ease, padding .2s ease; }
+.mw.editing::after { display: none; }
+.mw.editing .msg-queued { display: none; }
+.mw.editing .msg-time { display: none; }
+.queue-editor { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.queue-edit-area { width: 100%; box-sizing: border-box; background: var(--s1); border: 1px solid var(--accent); border-radius: 10px; color: var(--text); font-size: 15px; font-family: inherit; padding: 14px 16px; resize: vertical; outline: none; min-height: 140px; max-height: 70vh; line-height: 1.65; }
+.queue-edit-area:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(124,106,239,.2); }
+.queue-edit-btns { display: flex; gap: 8px; justify-content: flex-end; padding: 0 2px; }
+.qe-save { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background .12s, transform .1s; }
+.qe-save:hover { background: var(--accent2); transform: translateY(-1px); }
+.qe-cancel { background: var(--s3); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 7px 20px; font-size: 13px; font-family: inherit; cursor: pointer; transition: color .12s, border-color .12s; }
+.qe-cancel:hover { color: var(--text); border-color: var(--text); }
 .queue-badge { display:none; align-items:center; gap:4px; background:var(--orange); color:#000; font-size:11px; font-weight:700; padding:2px 9px 2px 7px; border-radius:12px; white-space:nowrap; flex-shrink:0; line-height:1.5; }
 .queue-badge.visible { display:inline-flex; animation:qbpulse 2s ease-in-out infinite; }
 .queue-badge::before { content:'⏳'; font-size:10px; }
@@ -2397,6 +2410,7 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
     <span id="sessBarRetry" style="display:none;font-size:11px;color:var(--warn,#f59e0b);opacity:.85;flex-shrink:0;"></span>
     <span id="sessBarClaudeId" style="display:none;font-family:monospace;font-size:10px;color:var(--muted);background:var(--s3,#1f2637);padding:1px 6px;border-radius:4px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;" title="" onclick="copySessId()"></span>
     <a id="sessBarOpenBtn" style="display:none;font-size:11px;color:var(--accent2);text-decoration:none;padding:1px 7px;border-radius:4px;border:1px solid rgba(124,106,239,.25);flex-shrink:0;cursor:pointer;" onclick="openInClaude()">⚡ Claude Code</a>
+    <button id="sessBarCompactBtn" class="sess-compact-btn" style="display:none;" onclick="compactSession()" data-i18n-title="compact.title" title="Compact chat and start new session">📋 <span data-i18n="compact.btn">Compact & New</span></button>
   </div>
 
   <div class="msgs" id="messages" role="log" aria-live="polite" aria-label="Chat messages">
@@ -3290,6 +3304,7 @@ const TRANSLATIONS = {
     'files.remote_unavail':'🌐 Віддалений проект —<br>файловий браузер недоступний',
     'hist.drag':'Перетягнути','tg.device.connected':'📱 Telegram: {name} підключено',
     'tg.bot.started':'✅ Telegram-бот запущено: @{bot}',
+    'compact.btn':'Compact & New','compact.title':'Стиснути чат і відкрити нову сесію','compact.loading':'Стиснення…','compact.success':'✅ Чат стиснено — відкриваю нову сесію','compact.err':'Помилка стиснення',
   },
   en: {
     'sec.proactive':'Status',
@@ -3477,6 +3492,7 @@ const TRANSLATIONS = {
     'files.remote_unavail':'🌐 Remote project —<br>file browser not available',
     'hist.drag':'Drag to reorder','tg.device.connected':'📱 Telegram: {name} connected',
     'tg.bot.started':'✅ Telegram bot started: @{bot}',
+    'compact.btn':'Compact & New','compact.title':'Compact chat and start new session','compact.loading':'Compacting…','compact.success':'✅ Chat compacted — opening new session','compact.err':'Compact failed',
   },
   ru: {
     'sec.proactive':'Статус',
@@ -3664,6 +3680,7 @@ const TRANSLATIONS = {
     'files.remote_unavail':'🌐 Удалённый проект —<br>файловый браузер недоступен',
     'hist.drag':'Перетащить','tg.device.connected':'📱 Telegram: {name} подключён',
     'tg.bot.started':'✅ Telegram-бот запущен: @{bot}',
+    'compact.btn':'Compact & New','compact.title':'Сжать чат и открыть новую сессию','compact.loading':'Сжатие…','compact.success':'✅ Чат сжат — открываю новую сессию','compact.err':'Ошибка сжатия',
   }
 };
 function t(key) {
@@ -6240,6 +6257,13 @@ async function updateSessBar(opts = {}) {
     if (openBtn) { openBtn.style.display = hasClaudeId ? '' : 'none'; }
     updateSessBarSkills();
     const tab = findTabAcrossProjects(sessionId)?.tab || openTabs.find(t => t.id === sessionId);
+    // Show compact button when session has messages and is not actively generating
+    const compactBtn = $i('sessBarCompactBtn');
+    if (compactBtn) {
+      const hasMessages = sess.messages && sess.messages.some(m => m.type === 'text' && m.role === 'user');
+      const isGenerating = tab?.generating || sess.isChatRunning;
+      compactBtn.style.display = (hasMessages && !isGenerating) ? '' : 'none';
+    }
     if (retryIfMissing && !hasClaudeId && tab?.generating && currentSessionId === sessionId) {
       scheduleSessBarRefresh();
     }
@@ -6262,6 +6286,43 @@ async function openInClaude() {
       navigator.clipboard.writeText(d.command).then(() => toast(t('toast.cmd_copied')));
     }
   } catch {}
+}
+
+async function compactSession() {
+  if (!currentSessionId) return;
+  const btn = $i('sessBarCompactBtn');
+  if (!btn || btn.classList.contains('loading')) return;
+
+  btn.dataset.loading = t('compact.loading');
+  btn.classList.add('loading');
+  try {
+    const r = await fetch(`/api/sessions/${currentSessionId}/compact`, { method: 'POST' });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: 'Unknown error' }));
+      toast('❌ ' + (err.error || t('compact.err')), true);
+      return;
+    }
+    const d = await r.json();
+    toast(t('compact.success'));
+
+    // Add new session tab and switch to it
+    openTabs.push({
+      id: d.id,
+      title: d.title,
+      generating: false,
+      done: false,
+      isNew: false
+    });
+    activeTabId = d.id;
+    currentSessionId = d.id;
+    renderTabs();
+    loadHist();
+    loadSess(d.id);
+  } catch (err) {
+    toast('❌ ' + t('compact.err') + ': ' + err.message, true);
+  } finally {
+    if (btn) btn.classList.remove('loading');
+  }
 }
 
 
@@ -6979,6 +7040,8 @@ function editQueuedMsg(btn) {
   const currentText = msgDiv.textContent;
   msgEl.dataset.originalText = currentText;
 
+  msgEl.classList.add('editing');
+
   const editor = document.createElement('div');
   editor.className = 'queue-editor';
   editor.innerHTML = `<textarea class="queue-edit-area" onkeydown="queueEditKey(event)">${escH(currentText)}</textarea><div class="queue-edit-btns"><button class="qe-cancel" onclick="cancelQueueEdit(this)">${t('queue.cancel')}</button><button class="qe-save" onclick="saveQueueEdit(this)">${t('queue.save')}</button></div>`;
@@ -7010,6 +7073,7 @@ function saveQueueEdit(btn) {
 
   const queueId = msgEl.dataset.queueId;
   delete msgEl.dataset.originalText;
+  msgEl.classList.remove('editing');
 
   const msgDiv = document.createElement('div');
   msgDiv.className = 'msg';
@@ -7027,6 +7091,7 @@ function cancelQueueEdit(btn) {
   const editor = btn.closest('.queue-editor');
   const originalText = msgEl.dataset.originalText || editor.querySelector('.queue-edit-area').value;
   delete msgEl.dataset.originalText;
+  msgEl.classList.remove('editing');
 
   const msgDiv = document.createElement('div');
   msgDiv.className = 'msg';
