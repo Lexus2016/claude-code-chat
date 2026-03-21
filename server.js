@@ -476,7 +476,7 @@ function wrapStmt(stmt, label) {
 }
 
 const stmts = {
-  createSession: db.prepare(`INSERT INTO sessions (id,title,active_mcp,active_skills,mode,agent_mode,model,engine,workdir) VALUES (?,?,?,?,?,?,?,?,?)`),
+  createSession: db.prepare(`INSERT INTO sessions (id,title,active_mcp,active_skills,mode,agent_mode,model,workdir) VALUES (?,?,?,?,?,?,?,?)`),
   updateTitle: db.prepare(`UPDATE sessions SET title=?,updated_at=datetime('now') WHERE id=?`),
   updateClaudeId: (() => {
     const _stmt = db.prepare(`UPDATE sessions SET claude_session_id=?,updated_at=datetime('now') WHERE id=?`);
@@ -848,7 +848,7 @@ async function startTask(task) {
     db.transaction(() => {
       if (!sessionId) {
         sessionId = genId();
-        stmts.createSession.run(sessionId, task.title.substring(0, 200), '[]', '[]', task.mode || 'auto', task.agent_mode || 'single', task.model || 'sonnet', 'cli', task.workdir || null);
+        stmts.createSession.run(sessionId, task.title.substring(0, 200), '[]', '[]', task.mode || 'auto', task.agent_mode || 'single', task.model || 'sonnet', task.workdir || null);
         stmts.setTaskSession.run(sessionId, task.id);
       }
       stmts.setTaskInProgress.run(task.id);
@@ -1204,7 +1204,7 @@ function scheduleNextChainRun(chain, oldTasks) {
   db.transaction(() => {
     // Create new session for next run
     stmts.createSession.run(newSessionId, chain.title, '[]', '[]',
-      chain.mode || 'auto', chain.agent_mode || 'single', chain.model || 'sonnet', 'cli',
+      chain.mode || 'auto', chain.agent_mode || 'single', chain.model || 'sonnet',
       chain.workdir || null);
     // Clone chain
     stmts.createChain.run(newChainId, chain.title, chain.workdir || null,
@@ -1861,9 +1861,18 @@ function buildAttachmentContentBlocks(attachments = []) {
       continue;
     }
     if (isTextAttachment(att)) {
-      let content = '(unable to decode)';
-      try { content = Buffer.from(att.base64, 'base64').toString('utf-8'); } catch {}
-      blocks.push({ type: 'text', text: `[File: ${att.name}]\n${content}` });
+      // Pass text files as 'file' blocks (same as images/binaries) so claude-cli.js
+      // saves them to temp and passes paths — Claude CLI reads them via its Read tool.
+      // This keeps the prompt small and avoids Windows command-line length limits.
+      blocks.push({
+        type: 'file',
+        source: {
+          type: 'base64',
+          media_type: att.type || 'text/plain',
+          data: att.base64,
+          name: att.name || 'attachment.txt',
+        },
+      });
       continue;
     }
     blocks.push({
@@ -3166,7 +3175,7 @@ app.post('/api/internal/task-manager', express.json({ limit: '1mb' }), (req, res
         const effectiveModel = chainModel || callerTask?.model || 'sonnet';
 
         stmts.createSession.run(chainSessionId, String(title).substring(0, 200), '[]', '[]',
-          'auto', 'single', effectiveModel, 'cli', workdir);
+          'auto', 'single', effectiveModel, workdir);
         stmts.createChain.run(chainId, String(title).substring(0, 200), workdir,
           effectiveModel, 'auto', 'single', 30,
           chainSessionId, toUnixTs(chainScheduledAt), recurrence || null,
@@ -3682,7 +3691,7 @@ app.post('/api/task-chains', (req, res) => {
   // Create shared session for the chain
   const sessionId = genId();
   stmts.createSession.run(sessionId, String(title).substring(0, 200), '[]', '[]',
-    sqlVal(mode), sqlVal(agent_mode), sqlVal(model), 'cli', sqlVal(workdir) || null);
+    sqlVal(mode), sqlVal(agent_mode), sqlVal(model), sqlVal(workdir) || null);
   stmts.createChain.run(id, String(title).substring(0, 200), sqlVal(workdir) || null,
     sqlVal(model), sqlVal(mode), sqlVal(agent_mode), sqlVal(max_turns),
     sessionId, sqlVal(scheduled_at) || null, sqlVal(recurrence) || null,
@@ -3860,7 +3869,7 @@ app.post('/api/tasks/dispatch', (req, res) => {
     (plan_description || 'Task chain').substring(0, 200),
     source?.active_mcp || '[]',
     source?.active_skills || '[]',
-    'auto', 'single', sqlVal(model) || 'sonnet', 'cli',
+    'auto', 'single', sqlVal(model) || 'sonnet',
     sqlVal(workdir) || null
   );
 
@@ -3915,9 +3924,9 @@ app.get('/api/sessions', (req,res) => {
   res.json(workdir ? stmts.getSessionsByWorkdir.all(workdir) : stmts.getSessions.all());
 });
 app.post('/api/sessions', (req, res) => {
-  const { title = i18nSession(), workdir = null, model = 'sonnet', mode = 'auto', agentMode = 'single', engine = null } = req.body || {};
+  const { title = i18nSession(), workdir = null, model = 'sonnet', mode = 'auto', agentMode = 'single' } = req.body || {};
   const id = genId();
-  stmts.createSession.run(id, String(title).substring(0, 200), '[]', '[]', sqlVal(mode), sqlVal(agentMode), sqlVal(model), sqlVal(engine), sqlVal(workdir) || null);
+  stmts.createSession.run(id, String(title).substring(0, 200), '[]', '[]', sqlVal(mode), sqlVal(agentMode), sqlVal(model), sqlVal(workdir) || null);
   res.json(stmts.getSession.get(id));
 });
 app.get('/api/sessions/interrupted', (req, res) => { res.json(stmts.getInterrupted.all()); });
@@ -4044,7 +4053,6 @@ ${transcript}`;
     sess.mode || 'auto',
     sess.agent_mode || 'single',
     sess.model || 'sonnet',
-    sess.engine || 'cli',
     sess.workdir || null
   );
 
@@ -5334,7 +5342,7 @@ wss.on('connection', (ws) => {
       let isNewSession = false;
       if (!localSessionId || !existSess) {
         localSessionId = genId();
-        stmts.createSession.run(localSessionId,i18nSession(),'[]','[]',sqlVal(msg.mode)||'auto',sqlVal(msg.agentMode)||'single',sqlVal(msg.model)||'sonnet',sqlVal(msg.engine)||null,sqlVal(msg.workdir)||null);
+        stmts.createSession.run(localSessionId,i18nSession(),'[]','[]',sqlVal(msg.mode)||'auto',sqlVal(msg.agentMode)||'single',sqlVal(msg.model)||'sonnet',sqlVal(msg.workdir)||null);
         isNewSession = true;
       } else {
         localClaudeId = sanitizeSessionId(existSess.claude_session_id) || undefined;
@@ -5683,7 +5691,7 @@ wss.on('connection', (ws) => {
         // handler resets streaming.el which destroys the just-restored _bgTxt bubble on tab switch.
         // session_started is only needed for NEW sessions (to map temp tab ID → real session ID).
       } else {
-        stmts.createSession.run(legacySessionId,i18nSession(),'[]','[]',sqlVal(msg.mode)||'auto',sqlVal(msg.agentMode)||'single',sqlVal(msg.model)||'sonnet',sqlVal(msg.engine)||null,null);
+        stmts.createSession.run(legacySessionId,i18nSession(),'[]','[]',sqlVal(msg.mode)||'auto',sqlVal(msg.agentMode)||'single',sqlVal(msg.model)||'sonnet',null);
         ws.send(JSON.stringify({ type:'session_started', sessionId:legacySessionId }));
       }
       return;
@@ -6069,7 +6077,7 @@ wss.on('connection', (ws) => {
             (finalPlan || 'Task chain').substring(0, 200),
             source?.active_mcp || '[]',
             source?.active_skills || '[]',
-            'auto', 'single', sqlVal(model) || 'sonnet', 'cli',
+            'auto', 'single', sqlVal(model) || 'sonnet',
             sqlVal(workdir) || null
           );
           // Register chain in task_chains table

@@ -200,7 +200,7 @@ class ClaudeCLI {
       }
       const prefixParts = [];
       if (textParts.length) prefixParts.push(textParts.join('\n\n'));
-      if (filePaths.length) prefixParts.push(`[Attached images — read these files to see the screenshots/images the user shared:\n${filePaths.map(f => `- ${f}`).join('\n')}\n]`);
+      if (filePaths.length) prefixParts.push(`[Attached files — read these files to see the content the user shared:\n${filePaths.map(f => `- ${f}`).join('\n')}\n]`);
       if (prefixParts.length) finalPrompt = prefixParts.join('\n\n') + '\n\n' + prompt;
     }
     args.push('-p', finalPrompt);

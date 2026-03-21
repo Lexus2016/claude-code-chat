@@ -1,6 +1,6 @@
 {
   "name": "claude-code-studio",
-  "version": "5.36.0",
+  "version": "5.37.0",
   "description": "Full-featured web workspace for Claude Code — chat, Kanban, multi-agent, MCP, skills, projects",
   "bin": {
     "claude-code-studio": "./bin/cli.js"
@@ -27,7 +27,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^2.1.50",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "express": "^4.21.0",
