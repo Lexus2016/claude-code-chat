@@ -1351,8 +1351,8 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 #meStdioFields:not([style*="display: none"]):not([style*="display:none"]), #meHttpFields:not([style*="display: none"]):not([style*="display:none"]) { animation:mcpSectionIn .18s var(--ease-out) }
 
 /* ─── Toast notifications ─── */
-#toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--s3); border: 1px solid var(--border); color: var(--text); padding: 9px 18px; border-radius: 10px; font-size: 13px; z-index: 200; pointer-events: none; opacity: 0; transition: opacity .25s; box-shadow: var(--shadow); white-space: nowrap; }
-#toast.show { opacity: 1; }
+#toast { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(12px); background: var(--s2); border: 1px solid var(--accent2); color: var(--text); padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 10000; pointer-events: none; opacity: 0; transition: opacity .25s, transform .25s; box-shadow: 0 4px 24px rgba(0,0,0,.45); white-space: nowrap; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 #toast.toast-err { border-color: var(--red); color: var(--red); }
 
 /* ─── Tooltips (floating JS div) ─── */
