@@ -799,6 +799,7 @@ const taskBuffers = new Map();     // taskId → accumulated text (for late subs
 const chatBuffers = new Map();     // sessionId → accumulated text for direct chat (for catch-up on reconnect)
 const MAX_CHAT_BUFFER = 2 * 1024 * 1024; // 2 MB cap per session — prevents unbounded growth
 const sessionQueues = new Map();   // sessionId → [msg, ...] — queue persistence across WS reconnects (page refresh)
+const sessionQueueCleanupTimers = new Map(); // sessionId → setTimeout handle — delayed cleanup to survive WS reconnect race
 
 // ─── Ask User (Internal MCP) ─────────────────────────────────────────────
 // Pending user questions: requestId → { resolve, sessionId, timer, question, options, inputType }
@@ -1669,20 +1670,31 @@ class TelegramProxy {
 
     const doneButtons = this._threadId
       ? [
-          ...(isLarge ? [{ text: '📄 Full', callback_data: 'cm:full' }] : []),
-          { text: '📜 History', callback_data: 'fm:history' },
-          { text: '🆕 New', callback_data: 'fm:new' },
+          // Row 1: primary actions — continue working, view full response
+          [
+            { text: '💬 Continue', callback_data: 'fm:compose' },
+            ...(isLarge ? [{ text: '📄 Full', callback_data: 'cm:full' }] : []),
+            { text: '📋 Diff', callback_data: 'fm:diff' },
+          ],
+          // Row 2: navigation — files, history, new session
+          [
+            { text: '📁 Files', callback_data: 'fm:files' },
+            { text: '📜 History', callback_data: 'fm:history' },
+            { text: '🆕 New', callback_data: 'fm:new' },
+          ],
         ]
       : [
-          { text: '💬 Continue', callback_data: 'cm:compose' },
-          ...(isLarge ? [{ text: '📄 Full', callback_data: 'cm:full' }] : []),
-          { text: '🏠 Menu', callback_data: 'm:menu' },
+          [
+            { text: '💬 Continue', callback_data: 'cm:compose' },
+            ...(isLarge ? [{ text: '📄 Full', callback_data: 'cm:full' }] : []),
+            { text: '🏠 Menu', callback_data: 'm:menu' },
+          ],
         ];
     await this._tgSend(
       `✅ <b>Done</b>${duration}${sessionLine}${toolsSummary}`,
       {
         parse_mode: 'HTML',
-        reply_markup: JSON.stringify({ inline_keyboard: [doneButtons] })
+        reply_markup: JSON.stringify({ inline_keyboard: doneButtons })
       }
     );
   }
@@ -1706,7 +1718,11 @@ class TelegramProxy {
     }
 
     const errorButtons = this._threadId
-      ? [{ text: '🔄 Retry', callback_data: 'fm:retry' }]
+      ? [
+          { text: '🔄 Retry', callback_data: 'fm:retry' },
+          { text: '💬 Continue', callback_data: 'fm:compose' },
+          { text: '📜 History', callback_data: 'fm:history' },
+        ]
       : [
           { text: '🔄 Retry', callback_data: 'cm:compose' },
           { text: '🏠 Menu', callback_data: 'm:menu' },
@@ -5969,6 +5985,9 @@ wss.on('connection', (ws) => {
             }
           }
         }
+        // Cancel any pending delayed cleanup — a live WS is reclaiming this session
+        const _cleanupTimer = sessionQueueCleanupTimers.get(sessionId);
+        if (_cleanupTimer) { clearTimeout(_cleanupTimer); sessionQueueCleanupTimers.delete(sessionId); }
         // Restore queue from persistent storage (survives page refresh / WS reconnect)
         if (!ws._tabQueue[sessionId]?.length && sessionQueues.has(sessionId) && sessionQueues.get(sessionId).length > 0) {
           ws._tabQueue[sessionId] = sessionQueues.get(sessionId); // shared ref
@@ -6217,12 +6236,31 @@ wss.on('connection', (ws) => {
       if (!activeTasks.has(tid)) { try { ac.abort(); } catch {} }
     }
     // Clean up orphaned sessionQueues entries: if no other watcher and no active task,
-    // the queue will never be processed — remove to prevent memory leak.
+    // the queue will never be processed — schedule delayed removal to prevent memory leak.
+    // Delay is needed because on page refresh the new WS hasn't subscribed yet when the
+    // old WS close fires, creating a race where the queue is deleted before reconnect.
     for (const tid of Object.keys(ws._tabQueue || {})) {
       const watchers = sessionWatchers.get(tid);
       const hasOtherWatcher = watchers && [...watchers].some(w => w !== ws && w.readyState === 1);
       if (!hasOtherWatcher && !activeTasks.has(tid)) {
-        sessionQueues.delete(tid);
+        const q = sessionQueues.get(tid);
+        if (!q || q.length === 0) {
+          // Empty queue — delete immediately, no data to preserve
+          sessionQueues.delete(tid);
+        } else {
+          // Non-empty queue — delay cleanup to give reconnecting WS time to reclaim it
+          if (!sessionQueueCleanupTimers.has(tid)) {
+            const timer = setTimeout(() => {
+              sessionQueueCleanupTimers.delete(tid);
+              const currentWatchers = sessionWatchers.get(tid);
+              const hasLiveWatcher = currentWatchers && [...currentWatchers].some(w => w.readyState === 1);
+              if (!hasLiveWatcher && !activeTasks.has(tid)) {
+                sessionQueues.delete(tid);
+              }
+            }, 30_000);
+            sessionQueueCleanupTimers.set(tid, timer);
+          }
+        }
       }
     }
     ws._tabAbort = {};

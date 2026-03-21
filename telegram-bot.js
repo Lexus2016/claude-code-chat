@@ -1591,11 +1591,41 @@ class TelegramBot extends EventEmitter {
       const sanitized = this._sanitize(lastMsg.content);
       const converted = this._mdToHtml(sanitized);
 
-      // Split into multiple messages if too long
+      // Split into multiple messages if too long — add action bar to last chunk
       const chunks = this._chunkForTelegram(converted, MAX_MESSAGE_LENGTH - 100);
+      const isForumTopic = !!this._currentThreadId;
       for (let i = 0; i < chunks.length; i++) {
         const prefix = chunks.length > 1 ? `📄 <i>(${i + 1}/${chunks.length})</i>\n\n` : '';
-        await this._sendMessage(chatId, prefix + chunks[i]);
+        const opts = { parse_mode: 'HTML' };
+
+        // Add action buttons to the last chunk so user always has navigation at the bottom
+        if (i === chunks.length - 1) {
+          const actionButtons = isForumTopic
+            ? [
+                [
+                  { text: '💬 Continue', callback_data: 'fm:compose' },
+                  { text: '📋 Diff', callback_data: 'fm:diff' },
+                  { text: '📁 Files', callback_data: 'fm:files' },
+                ],
+                [
+                  { text: '📜 History', callback_data: 'fm:history' },
+                  { text: '🆕 New', callback_data: 'fm:new' },
+                  { text: 'ℹ️ Info', callback_data: 'fm:info' },
+                ],
+              ]
+            : [
+                [
+                  { text: this._t('btn_write'), callback_data: 'cm:compose' },
+                  { text: this._t('btn_back_chats'), callback_data: 'c:list:0' },
+                  { text: this._t('btn_back_menu'), callback_data: 'm:menu' },
+                ],
+              ];
+          opts.reply_markup = JSON.stringify({ inline_keyboard: actionButtons });
+        }
+
+        await this._sendMessage(chatId, prefix + chunks[i], opts).catch(() => {
+          return this._sendMessage(chatId, (prefix + chunks[i]).replace(/<[^>]+>/g, ''), opts);
+        });
       }
     } catch (err) {
       await this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message) }));
@@ -2657,13 +2687,47 @@ class TelegramBot extends EventEmitter {
     content = this._mdToHtml(content);
 
     const chunks = this._chunkForTelegram(`${icon} <b>${this._escHtml(msg.role)}</b>\n\n${content}`, MAX_MESSAGE_LENGTH - 100);
+    const isForumTopic = !!this._currentThreadId;
+
     for (let i = 0; i < chunks.length; i++) {
       const opts = { parse_mode: 'HTML' };
-      if (i === chunks.length - 1) {
-        opts.reply_markup = JSON.stringify({ inline_keyboard: [
-          [{ text: this._t('btn_back_overview'), callback_data: 'd:overview' }]
-        ]});
+      const isLast = i === chunks.length - 1;
+
+      // Add action buttons to every chunk so user always has controls at the bottom
+      const buttons = [];
+
+      if (isLast) {
+        // Last chunk: full action set
+        if (isForumTopic) {
+          buttons.push([
+            { text: '💬 Continue', callback_data: 'fm:compose' },
+            { text: '📋 Diff', callback_data: 'fm:diff' },
+            { text: '📁 Files', callback_data: 'fm:files' },
+          ]);
+          buttons.push([
+            { text: '📜 History', callback_data: 'fm:history' },
+            { text: '🆕 New', callback_data: 'fm:new' },
+          ]);
+        } else {
+          buttons.push([
+            { text: this._t('btn_write'), callback_data: 'cm:compose' },
+            { text: this._t('btn_back_overview'), callback_data: 'd:overview' },
+            { text: this._t('btn_back_menu'), callback_data: 'm:menu' },
+          ]);
+        }
+      } else {
+        // Intermediate chunks: compact action button so user is never stranded
+        if (isForumTopic) {
+          buttons.push([{ text: '💬 Continue', callback_data: 'fm:compose' }]);
+        } else {
+          buttons.push([{ text: this._t('btn_back_overview'), callback_data: 'd:overview' }]);
+        }
       }
+
+      if (buttons.length) {
+        opts.reply_markup = JSON.stringify({ inline_keyboard: buttons });
+      }
+
       await this._sendMessage(chatId, chunks[i], opts).catch(() => {
         return this._sendMessage(chatId, chunks[i].replace(/<[^>]+>/g, ''), { reply_markup: opts.reply_markup });
       });
@@ -3824,7 +3888,7 @@ class TelegramBot extends EventEmitter {
   }
 
   /**
-   * Handle forum action callbacks (fm:history, fm:new, fm:retry).
+   * Handle forum action callbacks (fm:history, fm:new, fm:compose, fm:diff, fm:files, fm:stop, fm:retry, fm:last).
    */
   async _handleForumActionCallback(chatId, userId, data) {
     const action = data.slice(3);
@@ -3838,6 +3902,25 @@ class TelegramBot extends EventEmitter {
         return this._forumShowHistory(chatId, userId, topicInfo.workdir);
       case 'new':
         return this._forumNewSession(chatId, userId, topicInfo.workdir);
+      case 'compose': {
+        // Prompt user to type their message — in forum, all text goes to Claude automatically
+        const ctx = this._getContext(userId);
+        ctx.projectWorkdir = topicInfo.workdir;
+        await this._sendMessage(chatId, this._t('compose_prompt'), {
+          reply_markup: JSON.stringify({ inline_keyboard: [
+            [{ text: this._t('btn_cancel'), callback_data: 'fm:info' }],
+          ]}),
+        });
+        return;
+      }
+      case 'diff':
+        return this._cmdDiff(chatId, userId);
+      case 'files':
+        return this._cmdFiles(chatId, userId, ['.']);
+      case 'stop':
+        return this._cmdStop(chatId, userId);
+      case 'info':
+        return this._forumShowInfo(chatId, userId, topicInfo.workdir);
       case 'last': {
         // Show last 5 messages of current session
         const ctx = this._getContext(userId);
@@ -3884,9 +3967,15 @@ class TelegramBot extends EventEmitter {
 
         // Find project topic for this workdir and switch session there
         const topics = this._stmts.getForumTopics.all(chatId);
-        const projectTopic = topics.find(t => t.type === 'project' && t.workdir === session.workdir);
+        let projectTopic = topics.find(t => t.type === 'project' && t.workdir === session.workdir);
+
+        // Auto-create project topic if it doesn't exist yet
         if (!projectTopic) {
-          return this._sendMessage(chatId, this._t('forum_unknown_topic'));
+          const newThreadId = await this._createProjectTopic(chatId, session.workdir);
+          if (!newThreadId) {
+            return this._sendMessage(chatId, '❌ Failed to create project topic.');
+          }
+          projectTopic = { thread_id: newThreadId, type: 'project', workdir: session.workdir };
         }
 
         // Switch user's active session
@@ -3908,11 +3997,16 @@ class TelegramBot extends EventEmitter {
         }
         if (msgs.length === 0) text += '\n<i>No messages yet</i>';
 
+        // Send message to project topic + provide direct link for navigation
+        const topicUrl = this._topicLink(chatId, projectTopic.thread_id);
         text += `\n\n💡 <i>Session activated — write in the project topic to continue.</i>`;
 
         const buttons = [
           [
+            { text: '💬 Continue', callback_data: 'fm:compose' },
             { text: '📄 Full', callback_data: 'fm:last' },
+          ],
+          [
             { text: '📜 History', callback_data: 'fm:history' },
             { text: '🆕 New', callback_data: 'fm:new' },
           ],
@@ -3923,17 +4017,29 @@ class TelegramBot extends EventEmitter {
           parse_mode: 'HTML',
           reply_markup: JSON.stringify({ inline_keyboard: buttons }),
         });
+
+        // Also send a navigation link in the Activity topic so user can jump there
+        await this._sendMessage(chatId, `✅ Session activated in project topic.`, {
+          message_thread_id: this._currentThreadId,
+          reply_markup: JSON.stringify({ inline_keyboard: [
+            [{ text: '➡️ Go to project', url: topicUrl }],
+          ]}),
+        });
         return;
       }
 
       case 'project': {
-        // Navigate to project topic — send a hint message there
+        // Navigate to project topic — send URL link for direct navigation
         const threadId = parseInt(param);
         if (isNaN(threadId)) return;
 
-        await this._sendMessage(chatId, '📁 <i>Write a message here to start working with Claude.</i>', {
-          message_thread_id: threadId,
+        const topicUrl = this._topicLink(chatId, threadId);
+        await this._sendMessage(chatId, '📁 <i>Write a message in the project topic to start working with Claude.</i>', {
+          message_thread_id: this._currentThreadId,
           parse_mode: 'HTML',
+          reply_markup: JSON.stringify({ inline_keyboard: [
+            [{ text: '➡️ Go to project', url: topicUrl }],
+          ]}),
         });
         return;
       }
@@ -4132,10 +4238,16 @@ class TelegramBot extends EventEmitter {
       if (session?.workdir) {
         const projectTopic = topics.find(t => t.type === 'project' && t.workdir === session.workdir);
         const buttons = [];
-        buttons.push({ text: '💬 Open chat', callback_data: `fa:open:${sessionId}` });
+
+        // Use URL buttons for cross-topic navigation — Telegram client navigates directly
         if (projectTopic) {
-          buttons.push({ text: '📁 Project', callback_data: `fa:project:${projectTopic.thread_id}` });
+          const topicUrl = this._topicLink(forumChatId, projectTopic.thread_id);
+          buttons.push({ text: '💬 Open chat', url: topicUrl });
+        } else {
+          // Fallback: callback button to auto-create project topic + show preview
+          buttons.push({ text: '💬 Open chat', callback_data: `fa:open:${sessionId}` });
         }
+
         options.reply_markup = JSON.stringify({ inline_keyboard: [buttons] });
       }
     }
@@ -4297,10 +4409,35 @@ class TelegramBot extends EventEmitter {
         return `${icon} ${content}${truncated}`;
       });
 
+      // Build inline action buttons instead of text hints
+      const isForumTopic = !!this._currentThreadId;
+      const actionButtons = isForumTopic
+        ? [
+            [
+              { text: '📄 Full', callback_data: 'fm:last' },
+              { text: '💬 Continue', callback_data: 'fm:compose' },
+              { text: '📋 Diff', callback_data: 'fm:diff' },
+            ],
+            [
+              { text: '📜 History', callback_data: 'fm:history' },
+              { text: '🆕 New', callback_data: 'fm:new' },
+            ],
+          ]
+        : [
+            [
+              { text: this._t('btn_full_msg'), callback_data: 'cm:full' },
+              { text: this._t('btn_write'), callback_data: 'cm:compose' },
+              { text: this._t('btn_back_menu'), callback_data: 'm:menu' },
+            ],
+          ];
+
       await this._sendMessage(chatId,
-        `💬 <b>${this._escHtml(title)}</b>\n${'─'.repeat(20)}\n\n${lines.join('\n\n')}\n\n` +
-        this._t('msg_full_hint') + '\n' +
-        this._t('msg_compose_hint'));
+        `💬 <b>${this._escHtml(title)}</b>\n${'─'.repeat(20)}\n\n${lines.join('\n\n')}`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: JSON.stringify({ inline_keyboard: actionButtons }),
+        }
+      );
     } catch (err) {
       await this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message) }));
     }
@@ -4341,6 +4478,19 @@ class TelegramBot extends EventEmitter {
     if (diff < 3600000) return this._t('time_ago_min', { n: Math.floor(diff / 60000) });
     if (diff < 86400000) return this._t('time_ago_hour', { n: Math.floor(diff / 3600000) });
     return this._t('time_ago_day', { n: Math.floor(diff / 86400000) });
+  }
+
+  /**
+   * Generate a deep link URL to a specific forum topic.
+   * Format: https://t.me/c/{internal_id}/{thread_id}
+   * Works for private supergroups — navigates members directly to the topic.
+   */
+  _topicLink(chatId, threadId) {
+    // Supergroup chat IDs follow the format -100XXXXXXXXXX
+    // Strip the -100 prefix to get the internal ID
+    const idStr = String(chatId);
+    const internalId = idStr.startsWith('-100') ? idStr.slice(4) : idStr.replace('-', '');
+    return `https://t.me/c/${internalId}/${threadId}`;
   }
 
   /** HTML-escape for Telegram HTML parse mode */
