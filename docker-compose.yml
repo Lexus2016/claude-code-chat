@@ -14,7 +14,7 @@ services:
       - chat-data:/app/data
       - workspace:/app/workspace
       - skills:/app/skills
-      - claude-home:/root/.claude
+      - claude-home:/home/node/.claude
     environment:
       - PORT=3000
       - WORKDIR=/app/workspace

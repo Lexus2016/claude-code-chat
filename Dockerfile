@@ -16,7 +16,10 @@ RUN npm install --production
 
 COPY . .
 
-RUN mkdir -p /app/data /app/workspace /app/skills
+RUN mkdir -p /app/data /app/workspace /app/skills /home/node/.claude \
+    && touch /app/config.json \
+    && chown -R node:node /app/data /app/workspace /app/skills /home/node/.claude /app/.claude \
+    && chown node:node /app/config.json
 
 VOLUME ["/app/data", "/app/workspace", "/app/skills"]
 
@@ -25,5 +28,7 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV WORKDIR=/app/workspace
+
+USER node
 
 CMD ["node", "server.js"]
