@@ -3638,6 +3638,11 @@ class TelegramBot extends EventEmitter {
       }
     }
 
+    // Persistent keyboard buttons send their label text into the topic — intercept before Claude
+    if (text === this._t('kb_menu'))   return this._screenMainMenu(chatId, userId);
+    if (text === this._t('kb_status')) return this._cmdStatus(chatId, userId);
+    if (text === this._t('kb_write'))  return; // In forum mode, just type directly in the topic
+
     // Handle project-specific commands
     if (text.startsWith('/')) {
       const [rawCmd, ...argParts] = text.split(/\s+/);
@@ -3841,6 +3846,18 @@ class TelegramBot extends EventEmitter {
     const topicInfo = this._getTopicInfo(chatId, threadId);
     if (!topicInfo?.workdir) return;
 
+    // Always sync user context to the topic we're acting in — prevents cross-project data leaks
+    // when ctx.projectWorkdir/sessionId were set by another topic (e.g. via Activity fa:open)
+    const ctx = this._getContext(userId);
+    ctx.projectWorkdir = topicInfo.workdir;
+    if (ctx.sessionId) {
+      const sess = this.db.prepare('SELECT workdir FROM sessions WHERE id = ?').get(ctx.sessionId);
+      if (!sess || sess.workdir !== topicInfo.workdir) {
+        const lastForProject = this._stmts.getSessionsByWorkdir.all(topicInfo.workdir);
+        ctx.sessionId = lastForProject.length ? lastForProject[0].id : null;
+      }
+    }
+
     switch (action) {
       case 'history':
         return this._forumShowHistory(chatId, userId, topicInfo.workdir);
@@ -3848,8 +3865,6 @@ class TelegramBot extends EventEmitter {
         return this._forumNewSession(chatId, userId, topicInfo.workdir);
       case 'compose': {
         // Prompt user to type their message — in forum, all text goes to Claude automatically
-        const ctx = this._getContext(userId);
-        ctx.projectWorkdir = topicInfo.workdir;
         await this._sendMessage(chatId, this._t('compose_prompt'), {
           reply_markup: JSON.stringify({ inline_keyboard: [
             [{ text: this._t('btn_cancel'), callback_data: 'fm:info' }],
@@ -3867,13 +3882,11 @@ class TelegramBot extends EventEmitter {
         return this._forumShowInfo(chatId, userId, topicInfo.workdir);
       case 'last': {
         // Show last 5 messages of current session
-        const ctx = this._getContext(userId);
         if (!ctx.sessionId) return this._sendMessage(chatId, this._t('forum_history_empty'));
         return this._cmdLast(chatId, userId, ['5']);
       }
       case 'retry': {
         // Resend the last user message
-        const ctx = this._getContext(userId);
         if (!ctx.sessionId) return;
         const lastUserMsg = this.db.prepare(
           `SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1`
