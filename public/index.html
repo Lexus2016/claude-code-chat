@@ -1169,8 +1169,12 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .stop-btn { background: var(--red); box-shadow: 0 2px 8px rgba(248,81,73,.4); }
 .stop-btn:hover { background: #ff6b6b !important; box-shadow: 0 3px 12px rgba(248,81,73,.5) !important; }
 .sb svg { width: 15px; height: 15px; }
-.msg-queued { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); margin-top: 5px; padding: 3px 6px 3px 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 10px; }
+.msg-queued { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); margin-top: 5px; padding: 3px 6px 3px 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 10px; position: relative; z-index: 2; }
 .msg-queued::before { content: '⏳'; font-size: 11px; }
+/* Hide message action buttons for queued messages — they are irrelevant and overlap queue controls on short texts */
+.mw:has(.msg-queued) .use-btn,
+.mw:has(.msg-queued) .reply-btn,
+.mw:has(.msg-queued) .fork-btn { display: none !important; }
 .mq-label { line-height: 1; }
 .qd-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 11px; padding: 1px 3px; line-height: 1; border-radius: 3px; transition: color .12s, background .12s; display: inline-flex; align-items: center; }
 .qd-btn:hover { background: var(--s3); }
@@ -3002,6 +3006,11 @@ let cfgFiles = {}, activeCfgTab = null;
 let curMode = 'auto', curAgent = 'single', curModel = 'sonnet';
 let curWorkdir = null; // current working directory for the session
 let projects = [], curProjectId = null; // projects list + active project
+
+// ─── Project switch generation counter ───────────────────────────────────
+// Incremented on every switchProject() call. Async functions (loadHist, loadFiles)
+// capture this before awaiting and discard stale responses when it changes.
+let _switchGen = 0;
 
 // ─── Per-project in-memory tab state ─────────────────────────────────────
 // Keeps all projects' tabs alive simultaneously so background generation continues
@@ -7222,8 +7231,11 @@ async function loadHist() {
   try {
     const el = $i('histList');
     if (!curWorkdir) { el.innerHTML = ''; $i('histCount').textContent = '0'; return; }
+    const gen = _switchGen;
     const r = await fetch(`/api/sessions?workdir=${encodeURIComponent(curWorkdir)}`);
+    if (gen !== _switchGen) return; // project switched while fetching — discard stale response
     const ss = await r.json();
+    if (gen !== _switchGen) return;
     el.innerHTML = '';
     el.classList.toggle('hist-selmode', histSelectMode);
     $i('histCount').textContent = ss.length;
@@ -8895,8 +8907,11 @@ function _filesQS(relPath) {
 
 async function loadFiles(dir = '') {
   try {
+    const gen = _switchGen;
     const r = await fetch(`/api/files?${_filesQS(dir)}`);
+    if (gen !== _switchGen) return; // project switched while fetching — discard stale response
     const d = await r.json();
+    if (gen !== _switchGen) return;
     if (d.type === 'remote') {
       const treeEl = $i('filesTree');
       if (treeEl) treeEl.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:8px 4px;line-height:1.6">${t('files.remote_unavail')}</div>`;
@@ -9277,6 +9292,9 @@ function switchProject(id) {
   // No isGen block — background generation continues uninterrupted
   const p = projects.find(x => x.id === id);
   if (!p) return;
+
+  // Invalidate any in-flight async loads (loadHist, loadFiles) from the previous project
+  _switchGen++;
 
   // Persist current project's live tab state to memory before switching away
   if (curProjectId) {

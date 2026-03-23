@@ -132,8 +132,10 @@ Pair in 30 seconds (6-digit code from Settings). Your phone becomes a full remot
 - **Inline Stop:** 🛑 button on every progress message — one tap to cancel
 - **Session bridge:** Messages sync to both phone and browser simultaneously
 - **Multi-device:** Pair phone, tablet, laptop — all at once
+- **✉ Write button:** Quick-compose shortcut in the persistent keyboard — start typing without navigating menus
+- **File attachments:** Send photos/files directly in the bot — get size confirmation, then attach your question
 
-**Forum Mode** — Telegram supergroup with Topics. Each project gets its own thread with deep-link navigation between topics. Rich inline action buttons on every message — Continue, Diff, Files, History, New session. Auto-creates project topics on demand. Tasks topic for Kanban management. Activity topic with direct URL buttons to jump into any project.
+**Forum Mode** — Telegram supergroup with Topics. Each project gets its own thread with deep-link navigation between topics. Rich inline action buttons on every message — fully localized in EN/UA/RU — Continue, Diff, Files, History, New session. Auto-creates project topics on demand. Tasks topic for Kanban management. Activity topic with direct URL buttons to jump into any project.
 
 ![Telegram Forum Mode](public/screenshots/tg_forum.jpg)
 
@@ -245,7 +247,7 @@ npx github:Lexus2016/claude-code-studio    # launch as usual
 | **Kanban** | Task queue, parallel + sequential, cross-tab sync, drag-and-drop tabs, dependency graphs |
 | **Scheduler** | One-time + recurring (hourly/daily/weekly/monthly), 5 parallel workers, Run Now, SQLite-persisted |
 | **Task Manager** | Autonomous child tasks, chains, context passing, result reporting, cancellation (MCP) |
-| **Telegram** | Bot control, push notifications, ask_user forwarding, session bridge, Forum Mode, inline stop, deep-link navigation, rich action buttons |
+| **Telegram** | Bot control, push notifications, ask_user forwarding, session bridge, Forum Mode, inline stop, deep-link navigation, rich action buttons (localized EN/UA/RU), Write button, file attachments |
 | **Agents** | Single, Multi (2–5 in-chat), Dispatch (Kanban), auto-retry, cascade cancellation |
 | **Modes** | Auto, Plan (read-only + Execute Plan), Task, auto mode switching |
 | **Skills** | 28 built-in, auto-classification, plugin discovery, custom `.md` files |

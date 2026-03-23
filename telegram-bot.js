@@ -56,6 +56,7 @@ const BOT_I18N = {
 
     // Keyboard buttons (persistent)
     'kb_menu': '🏠 Меню',
+    'kb_write': '✉ Написати',
     'kb_status': '📊 Статус',
 
     // Main menu
@@ -290,6 +291,28 @@ const BOT_I18N = {
     'forum_activity_readonly': '🔔 Цей топік лише для сповіщень.\n\nВикористовуйте кнопки вище або перейдіть у топік проєкту.',
     'btn_forum_setup': '🏗 Forum Mode',
     'btn_forum_disconnect': '🔌 Відключити Forum',
+
+    // Forum mode buttons (inline)
+    'fm_btn_continue': '💬 Продовжити',
+    'fm_btn_diff': '📋 Diff',
+    'fm_btn_files': '📁 Файли',
+    'fm_btn_history': '📜 Історія',
+    'fm_btn_new': '🆕 Нова',
+    'fm_btn_info': 'ℹ️ Інфо',
+    'fm_btn_view': '💬 Переглянути',
+    'fm_btn_resume': '📝 Продовжити',
+    'fm_btn_last5': '📄 Останні 5',
+    'fm_btn_full': '📄 Повністю',
+    'fm_btn_go_project': '➡️ До проєкту',
+    'fm_btn_go_project_files': '📁 До проєкту',
+    'fm_btn_open_chat': '💬 Відкрити чат',
+    'fm_session_activated_hint': '💡 <i>Сесію активовано — пишіть у топіку проєкту для продовження.</i>',
+    'fm_session_activated_short': '✅ Сесію активовано в топіку проєкту.',
+    'fm_write_in_topic': '📁 <i>Напишіть повідомлення в топіку проєкту, щоб почати роботу з Claude.</i>',
+
+    // Media attachment
+    'attach_pending': '📎 <b>{name}</b> додано ({size}KB)\nНадішліть текстове повідомлення або додайте ще файлів.',
+    'attach_pending_ask': '📎 <b>{name}</b> додано\nНадішліть текстове повідомлення з питанням щодо файлу.',
   },
   en: {
     'rate_limit': '⚠️ Too many requests. Please wait a minute.',
@@ -305,6 +328,7 @@ const BOT_I18N = {
     'invalid_code': '❌ Invalid or expired code.\n\nAttempts remaining: {remaining}',
 
     'kb_menu': '🏠 Menu',
+    'kb_write': '✉ Write',
     'kb_status': '📊 Status',
 
     'main_title': '🤖 <b>Claude Code Studio</b>',
@@ -521,6 +545,28 @@ const BOT_I18N = {
     'forum_activity_readonly': '🔔 This topic is for notifications only.\n\nUse the buttons above or go to a project topic.',
     'btn_forum_setup': '🏗 Forum Mode',
     'btn_forum_disconnect': '🔌 Disconnect Forum',
+
+    // Forum mode buttons (inline)
+    'fm_btn_continue': '💬 Continue',
+    'fm_btn_diff': '📋 Diff',
+    'fm_btn_files': '📁 Files',
+    'fm_btn_history': '📜 History',
+    'fm_btn_new': '🆕 New',
+    'fm_btn_info': 'ℹ️ Info',
+    'fm_btn_view': '💬 View',
+    'fm_btn_resume': '📝 Continue',
+    'fm_btn_last5': this._t('fm_btn_last5'),
+    'fm_btn_full': this._t('fm_btn_full'),
+    'fm_btn_go_project': '➡️ Go to project',
+    'fm_btn_go_project_files': '📁 Go to project',
+    'fm_btn_open_chat': this._t('fm_btn_open_chat'),
+    'fm_session_activated_hint': '💡 <i>Session activated — write in the project topic to continue.</i>',
+    'fm_session_activated_short': '✅ Session activated in project topic.',
+    'fm_write_in_topic': '📁 <i>Write a message in the project topic to start working with Claude.</i>',
+
+    // Media attachment
+    'attach_pending': '📎 <b>{name}</b> attached ({size}KB)\nSend a text message to include it, or send more files.',
+    'attach_pending_ask': '📎 <b>{name}</b> attached\nNow send a text message with your question about this file.',
   },
   ru: {
     'rate_limit': '⚠️ Слишком много запросов. Подождите минуту.',
@@ -536,6 +582,7 @@ const BOT_I18N = {
     'invalid_code': '❌ Неверный или просроченный код.\n\nОсталось попыток: {remaining}',
 
     'kb_menu': '🏠 Меню',
+    'kb_write': '✉ Написать',
     'kb_status': '📊 Статус',
 
     'main_title': '🤖 <b>Claude Code Studio</b>',
@@ -752,6 +799,28 @@ const BOT_I18N = {
     'forum_activity_readonly': '🔔 Этот топик только для уведомлений.\n\nИспользуйте кнопки выше или перейдите в топик проекта.',
     'btn_forum_setup': '🏗 Forum Mode',
     'btn_forum_disconnect': '🔌 Отключить Forum',
+
+    // Forum mode buttons (inline)
+    'fm_btn_continue': '💬 Продолжить',
+    'fm_btn_diff': '📋 Diff',
+    'fm_btn_files': '📁 Файлы',
+    'fm_btn_history': '📜 История',
+    'fm_btn_new': '🆕 Новая',
+    'fm_btn_info': 'ℹ️ Инфо',
+    'fm_btn_view': '💬 Просмотр',
+    'fm_btn_resume': '📝 Продолжить',
+    'fm_btn_last5': '📄 Последние 5',
+    'fm_btn_full': '📄 Полностью',
+    'fm_btn_go_project': '➡️ К проекту',
+    'fm_btn_go_project_files': '📁 К проекту',
+    'fm_btn_open_chat': '💬 Открыть чат',
+    'fm_session_activated_hint': '💡 <i>Сессия активирована — пишите в топике проекта для продолжения.</i>',
+    'fm_session_activated_short': '✅ Сессия активирована в топике проекта.',
+    'fm_write_in_topic': '📁 <i>Напишите сообщение в топике проекта, чтобы начать работу с Claude.</i>',
+
+    // Media attachment
+    'attach_pending': '📎 <b>{name}</b> добавлено ({size}KB)\nОтправьте текстовое сообщение или добавьте ещё файлов.',
+    'attach_pending_ask': '📎 <b>{name}</b> добавлено\nОтправьте текстовое сообщение с вопросом о файле.',
   },
 };
 
@@ -1260,7 +1329,9 @@ class TelegramBot extends EventEmitter {
 
       // Persistent keyboard buttons
       if (text === this._t('kb_menu')) { return this._screenMainMenu(chatId, userId); }
-      if (text === this._t('kb_status')) { return this._cmdStatus(chatId); }
+      if (text === this._t('kb_write')) { return this._handleWriteButton(chatId, userId); }
+      if (text === this._t('kb_status')) { return this._screenStatus(chatId, userId); }
+      // Legacy: 🔔 bell button (replaced by Settings, but keep for backwards compat)
       if (text === '🔔') {
         const device = this._stmts.getDevice.get(userId);
         const newVal = device?.notifications_enabled ? 0 : 1;
@@ -1349,7 +1420,7 @@ class TelegramBot extends EventEmitter {
       await this._sendMessage(chatId, this._t('use_menu'), {
         parse_mode: 'HTML',
         reply_markup: JSON.stringify({
-          keyboard: [[{ text: this._t('kb_menu') }, { text: this._t('kb_status') }, { text: '🔔' }]],
+          keyboard: [[{ text: this._t('kb_menu') }, { text: this._t('kb_write') }, { text: this._t('kb_status') }]],
           resize_keyboard: true,
           is_persistent: true,
         }),
@@ -1393,7 +1464,7 @@ class TelegramBot extends EventEmitter {
       case '/chat':    return this._cmdChat(chatId, userId, args);
       case '/last':    return this._cmdLast(chatId, userId, args);
       case '/full':    return this._cmdFull(chatId, userId);
-      case '/status':  return this._cmdStatus(chatId);
+      case '/status':  return this._cmdStatus(chatId, userId);
       case '/tasks':   return this._cmdTasks(chatId, userId);
       case '/files':   return this._cmdFiles(chatId, userId, args);
       case '/cat':     return this._cmdCat(chatId, userId, args);
@@ -1409,7 +1480,11 @@ class TelegramBot extends EventEmitter {
       case '/tunnel':  return this._cmdTunnel(chatId, userId);
       case '/url':     return this._cmdUrl(chatId);
       default:
-        await this._sendMessage(chatId, this._t('error_unknown_cmd', { cmd }));
+        await this._sendMessage(chatId, this._t('error_unknown_cmd', { cmd }), {
+          reply_markup: JSON.stringify({ inline_keyboard: [
+            [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+          ] }),
+        });
     }
   }
 
@@ -1421,37 +1496,7 @@ class TelegramBot extends EventEmitter {
   }
 
   async _cmdProjects(chatId, userId) {
-    try {
-      const rows = this.db.prepare(`
-        SELECT workdir, COUNT(*) as chat_count, MAX(updated_at) as last_active
-        FROM sessions
-        WHERE workdir IS NOT NULL AND workdir != ''
-        GROUP BY workdir
-        ORDER BY last_active DESC
-        LIMIT 20
-      `).all();
-
-      if (rows.length === 0) {
-        await this._sendMessage(chatId, this._t('projects_empty'));
-        return;
-      }
-
-      const lines = rows.map((r, i) => {
-        const name = r.workdir.split('/').filter(Boolean).pop() || r.workdir;
-        const ago = this._timeAgo(r.last_active);
-        return `${i + 1}. 📁 \`${name}\`\n   ${this._t('project_chats_label', { count: r.chat_count })}, ${ago}`;
-      });
-
-      await this._sendMessage(chatId,
-        `${this._t('projects_title', { count: rows.length })}\n\n${lines.join('\n\n')}\n\n` +
-        this._t('project_select_hint'));
-
-      // Store project list in context for /project command
-      const ctx = this._getContext(userId);
-      ctx.projectList = rows.map(r => r.workdir);
-    } catch (err) {
-      await this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message) }));
-    }
+    return this._screenProjects(chatId, userId, 'p:list:0');
   }
 
   async _cmdProject(chatId, userId, args) {
@@ -1480,57 +1525,8 @@ class TelegramBot extends EventEmitter {
   }
 
   async _cmdChats(chatId, userId) {
-    const ctx = this._getContext(userId);
-    const workdir = ctx.projectWorkdir;
-
-    try {
-      let rows;
-      if (workdir) {
-        rows = this.db.prepare(`
-          SELECT s.id, s.title, s.updated_at, s.model, s.mode,
-                 COUNT(m.id) as msg_count
-          FROM sessions s
-          LEFT JOIN messages m ON m.session_id = s.id
-          WHERE s.workdir = ?
-          GROUP BY s.id
-          ORDER BY s.updated_at DESC
-          LIMIT 15
-        `).all(workdir);
-      } else {
-        rows = this.db.prepare(`
-          SELECT s.id, s.title, s.updated_at, s.model, s.mode,
-                 COUNT(m.id) as msg_count
-          FROM sessions s
-          LEFT JOIN messages m ON m.session_id = s.id
-          GROUP BY s.id
-          ORDER BY s.updated_at DESC
-          LIMIT 15
-        `).all();
-      }
-
-      if (rows.length === 0) {
-        await this._sendMessage(chatId, this._t('chats_empty'));
-        return;
-      }
-
-      const lines = rows.map((r, i) => {
-        const ago = this._timeAgo(r.updated_at);
-        const title = (r.title || this._t('chat_untitled')).substring(0, 40);
-        return `${i + 1}. 💬 ${this._escHtml(title)}\n   ${this._t('chat_messages', { count: r.msg_count })}, ${ago}`;
-      });
-
-      const header = workdir
-        ? this._t('chats_title_project', { project: this._escHtml(workdir.split('/').filter(Boolean).pop()) })
-        : this._t('chats_title_all');
-
-      await this._sendMessage(chatId,
-        `${header} (${rows.length})\n\n${lines.join('\n\n')}\n\n` +
-        this._t('chat_select_hint'));
-
-      ctx.chatList = rows.map(r => r.id);
-    } catch (err) {
-      await this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message) }));
-    }
+    // Redirect to button-based screen
+    return this._screenChats(chatId, userId, 'c:list:0');
   }
 
   async _cmdChat(chatId, userId, args) {
@@ -1603,14 +1599,14 @@ class TelegramBot extends EventEmitter {
           const actionButtons = isForumTopic
             ? [
                 [
-                  { text: '💬 Continue', callback_data: 'fm:compose' },
-                  { text: '📋 Diff', callback_data: 'fm:diff' },
-                  { text: '📁 Files', callback_data: 'fm:files' },
+                  { text: this._t('fm_btn_continue'), callback_data: 'fm:compose' },
+                  { text: this._t('fm_btn_diff'), callback_data: 'fm:diff' },
+                  { text: this._t('fm_btn_files'), callback_data: 'fm:files' },
                 ],
                 [
-                  { text: '📜 History', callback_data: 'fm:history' },
-                  { text: '🆕 New', callback_data: 'fm:new' },
-                  { text: 'ℹ️ Info', callback_data: 'fm:info' },
+                  { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+                  { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
+                  { text: this._t('fm_btn_info'), callback_data: 'fm:info' },
                 ],
               ]
             : [
@@ -1632,146 +1628,32 @@ class TelegramBot extends EventEmitter {
     }
   }
 
-  async _cmdStatus(chatId) {
-    try {
-      const sessionCount = this.db.prepare('SELECT COUNT(*) as n FROM sessions').get().n;
-      const messageCount = this.db.prepare('SELECT COUNT(*) as n FROM messages').get().n;
-      const taskCount = this.db.prepare('SELECT COUNT(*) as n FROM tasks').get().n;
-      const tasksByStatus = this.db.prepare(`
-        SELECT status, COUNT(*) as n FROM tasks GROUP BY status
-      `).all();
-
-      const devices = this._stmts.getAllDevices.all();
-      const uptime = process.uptime();
-      const hours = Math.floor(uptime / 3600);
-      const mins = Math.floor((uptime % 3600) / 60);
-
-      let taskStatusLine = '';
-      if (tasksByStatus.length > 0) {
-        const icons = { backlog: '📋', todo: '📝', in_progress: '🔄', done: '✅', blocked: '🚫' };
-        taskStatusLine = tasksByStatus.map(t => `${icons[t.status] || '•'} ${t.status}: ${t.n}`).join('\n');
-      }
-
-      // Active chats — with timeout fallback if listener not attached
-      const activeChats = await Promise.race([
-        new Promise(resolve => this.emit('get_active_chats', resolve)),
-        new Promise(resolve => setTimeout(() => resolve([]), 500)),
-      ]);
-      let activeSection = '';
-      if (activeChats && activeChats.length > 0) {
-        activeSection = '\n' + this._t('status_active_chats', { count: activeChats.length }) + '\n';
-        for (const ac of activeChats) {
-          const dur = Math.floor((Date.now() - ac.startedAt) / 1000);
-          const durMin = Math.floor(dur / 60);
-          const durSec = dur % 60;
-          const srcLabel = ac.source === 'telegram' ? this._t('status_active_source_tg') : this._t('status_active_source_web');
-          activeSection += `  ⚡ ${this._escHtml(ac.title)} <i>(${durMin}:${String(durSec).padStart(2, '0')}, ${srcLabel})</i>\n`;
-        }
-      } else {
-        activeSection = '\n' + this._t('status_active_none') + '\n';
-      }
-
-      await this._sendMessage(chatId,
-        this._t('status_title') + '\n\n' +
-        this._t('status_uptime', { hours, mins }) + '\n' +
-        this._t('status_sessions', { count: sessionCount }) + '\n' +
-        this._t('status_messages', { count: messageCount }) + '\n' +
-        this._t('status_tasks_count', { count: taskCount }) + '\n' +
-        (taskStatusLine ? `\n${this._t('status_tasks_heading')}\n${taskStatusLine}\n` : '') +
-        activeSection +
-        '\n' + this._t('status_devices', { count: devices.length }) + '\n' +
-        this._t('status_new_conn', { status: this._acceptNewConnections ? this._t('status_conn_on') : this._t('status_conn_off') }));
-    } catch (err) {
-      await this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message) }));
-    }
+  async _cmdStatus(chatId, userId) {
+    // Redirect to button-based status screen
+    return this._screenStatus(chatId, userId);
   }
 
   async _cmdTasks(chatId, userId) {
-    try {
-      const ctx = this._getContext(userId);
-      const workdir = ctx.projectWorkdir;
-
-      let rows;
-      if (workdir) {
-        rows = this.db.prepare(`
-          SELECT id, title, status, updated_at FROM tasks
-          WHERE workdir = ? ORDER BY sort_order ASC, created_at ASC LIMIT 20
-        `).all(workdir);
-      } else {
-        rows = this.db.prepare(`
-          SELECT id, title, status, updated_at FROM tasks
-          ORDER BY sort_order ASC, created_at ASC LIMIT 20
-        `).all();
-      }
-
-      if (rows.length === 0) {
-        await this._sendMessage(chatId, this._t('tasks_empty'));
-        return;
-      }
-
-      const icons = { backlog: '📋', todo: '📝', in_progress: '🔄', done: '✅', blocked: '🚫' };
-      const lines = rows.map(r => {
-        const icon = icons[r.status] || '•';
-        const title = (r.title || this._t('chat_untitled')).substring(0, 50);
-        return `${icon} ${this._escHtml(title)}`;
-      });
-
-      await this._sendMessage(chatId,
-        `${this._t('tasks_title', { count: rows.length })}\n\n${lines.join('\n')}`);
-    } catch (err) {
-      await this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message) }));
-    }
+    // Redirect to button-based screen
+    return this._screenTasks(chatId, userId, 't:list');
   }
 
   async _cmdFiles(chatId, userId, args) {
-    const ctx = this._getContext(userId);
-    const fs = require('fs');
-    const pathMod = require('path');
-
-    const baseDir = ctx.projectWorkdir || process.env.WORKDIR || pathMod.join(process.cwd(), 'workspace');
-    const subPath = args.join(' ') || '';
-    const targetDir = pathMod.resolve(baseDir, subPath);
-
-    // Security: ensure path is within workspace
-    if (!targetDir.startsWith(baseDir)) {
-      await this._sendMessage(chatId, this._t('files_denied_workspace'));
-      return;
-    }
-
-    try {
-      const items = fs.readdirSync(targetDir, { withFileTypes: true })
-        .filter(d => !d.name.startsWith('.'))
-        .sort((a, b) => {
-          if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
-          return a.name.localeCompare(b.name);
-        })
-        .slice(0, 30);
-
-      if (items.length === 0) {
-        await this._sendMessage(chatId, this._t('files_empty_dir'));
-        return;
-      }
-
-      const lines = items.map(d => {
-        const icon = d.isDirectory() ? '📁' : '📄';
-        return `${icon} <code>${this._escHtml(d.name)}</code>`;
-      });
-
-      const relPath = subPath || '.';
-      await this._sendMessage(chatId,
-        `📂 <b>${this._escHtml(relPath)}</b>\n\n${lines.join('\n')}`);
-    } catch (err) {
-      await this._sendMessage(chatId, `❌ ${this._escHtml(err.message)}`);
-    }
+    // Redirect to button-based file browser
+    const subPath = args.join(' ') || '.';
+    return this._screenFiles(chatId, userId, `f:${subPath}`);
   }
 
   async _cmdCat(chatId, userId, args) {
     const ctx = this._getContext(userId);
     const fs = require('fs');
     const pathMod = require('path');
+    const navButtons = { reply_markup: JSON.stringify({ inline_keyboard: [
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+    ] }) };
 
     if (args.length === 0) {
-      await this._sendMessage(chatId, this._t('cat_usage'));
+      await this._sendMessage(chatId, this._t('cat_usage'), navButtons);
       return;
     }
 
@@ -1780,13 +1662,13 @@ class TelegramBot extends EventEmitter {
 
     // Security: path traversal check
     if (!filePath.startsWith(baseDir)) {
-      await this._sendMessage(chatId, this._t('files_denied'));
+      await this._sendMessage(chatId, this._t('files_denied'), navButtons);
       return;
     }
 
     // Security: sensitive file check
     if (this._isSensitiveFile(filePath)) {
-      await this._sendMessage(chatId, this._t('files_sensitive'));
+      await this._sendMessage(chatId, this._t('files_sensitive'), navButtons);
       return;
     }
 
@@ -1799,13 +1681,13 @@ class TelegramBot extends EventEmitter {
       if (sanitized.length > MAX_MESSAGE_LENGTH - 200) {
         const truncated = sanitized.substring(0, MAX_MESSAGE_LENGTH - 200);
         await this._sendMessage(chatId,
-          `📄 <b>${this._escHtml(name)}</b>\n\n<pre><code class="language-${ext}">${this._escHtml(truncated)}</code></pre>\n\n${this._t('files_truncated', { len: content.length })}`);
+          `📄 <b>${this._escHtml(name)}</b>\n\n<pre><code class="language-${ext}">${this._escHtml(truncated)}</code></pre>\n\n${this._t('files_truncated', { len: content.length })}`, navButtons);
       } else {
         await this._sendMessage(chatId,
-          `📄 <b>${this._escHtml(name)}</b>\n\n<pre><code class="language-${ext}">${this._escHtml(sanitized)}</code></pre>`);
+          `📄 <b>${this._escHtml(name)}</b>\n\n<pre><code class="language-${ext}">${this._escHtml(sanitized)}</code></pre>`, navButtons);
       }
     } catch (err) {
-      await this._sendMessage(chatId, `❌ ${this._escHtml(err.message)}`);
+      await this._sendMessage(chatId, `❌ ${this._escHtml(err.message)}`, navButtons);
     }
   }
 
@@ -1814,6 +1696,9 @@ class TelegramBot extends EventEmitter {
     const { execSync } = require('child_process');
 
     const workdir = ctx.projectWorkdir || process.env.WORKDIR || require('path').join(process.cwd(), 'workspace');
+    const navButtons = { reply_markup: JSON.stringify({ inline_keyboard: [
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+    ] }) };
 
     try {
       const diff = execSync('git diff --stat HEAD', {
@@ -1821,18 +1706,18 @@ class TelegramBot extends EventEmitter {
       }).trim();
 
       if (!diff) {
-        await this._sendMessage(chatId, this._t('git_no_changes'));
+        await this._sendMessage(chatId, this._t('git_no_changes'), navButtons);
         return;
       }
 
       await this._sendMessage(chatId,
-        `📊 <b>Git Diff</b>\n\n<pre><code>${this._escHtml(this._sanitize(diff))}</code></pre>`);
+        `📊 <b>Git Diff</b>\n\n<pre><code>${this._escHtml(this._sanitize(diff))}</code></pre>`, navButtons);
     } catch (err) {
       const msg = (err.stderr || err.message || '').toString();
       if (msg.includes('not a git repository') || msg.includes('fatal:')) {
-        await this._sendMessage(chatId, this._t('git_no_changes'));
+        await this._sendMessage(chatId, this._t('git_no_changes'), navButtons);
       } else {
-        await this._sendMessage(chatId, `❌ ${this._escHtml(msg.slice(0, 200))}`);
+        await this._sendMessage(chatId, `❌ ${this._escHtml(msg.slice(0, 200))}`, navButtons);
       }
     }
   }
@@ -1843,6 +1728,9 @@ class TelegramBot extends EventEmitter {
 
     const n = Math.min(parseInt(args[0], 10) || 5, 15);
     const workdir = ctx.projectWorkdir || process.env.WORKDIR || require('path').join(process.cwd(), 'workspace');
+    const navButtons = { reply_markup: JSON.stringify({ inline_keyboard: [
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+    ] }) };
 
     try {
       const log = execSync(`git log --oneline -${n}`, {
@@ -1850,32 +1738,35 @@ class TelegramBot extends EventEmitter {
       }).trim();
 
       if (!log) {
-        await this._sendMessage(chatId, this._t('git_not_repo'));
+        await this._sendMessage(chatId, this._t('git_not_repo'), navButtons);
         return;
       }
 
       await this._sendMessage(chatId,
-        `${this._t('git_last_commits', { n })}\n\n<pre><code>${this._escHtml(log)}</code></pre>`);
+        `${this._t('git_last_commits', { n })}\n\n<pre><code>${this._escHtml(log)}</code></pre>`, navButtons);
     } catch (err) {
       const msg = (err.stderr || err.message || '').toString();
       if (msg.includes('not a git repository') || msg.includes('fatal:')) {
-        await this._sendMessage(chatId, this._t('git_not_repo'));
+        await this._sendMessage(chatId, this._t('git_not_repo'), navButtons);
       } else {
-        await this._sendMessage(chatId, `❌ ${this._escHtml(msg.slice(0, 200))}`);
+        await this._sendMessage(chatId, `❌ ${this._escHtml(msg.slice(0, 200))}`, navButtons);
       }
     }
   }
 
   async _cmdNotify(chatId, userId, args) {
+    const navButtons = { reply_markup: JSON.stringify({ inline_keyboard: [
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+    ] }) };
     const val = args[0]?.toLowerCase();
     if (val === 'on' || val === 'off') {
       this._stmts.updateNotifications.run(val === 'on' ? 1 : 0, userId);
       await this._sendMessage(chatId,
-        val === 'on' ? this._t('notify_on') : this._t('notify_off'));
+        val === 'on' ? this._t('notify_on') : this._t('notify_off'), navButtons);
     } else {
       const device = this._stmts.getDevice.get(userId);
       const current = device?.notifications_enabled ? this._t('status_conn_on') : this._t('status_conn_off');
-      await this._sendMessage(chatId, this._t('notify_current', { status: current }));
+      await this._sendMessage(chatId, this._t('notify_current', { status: current }), navButtons);
     }
   }
 
@@ -1894,12 +1785,8 @@ class TelegramBot extends EventEmitter {
   }
 
   async _cmdUnlink(chatId, userId) {
-    this._stmts.removeByUserId.run(userId);
-    this._userContext.delete(userId);
-
-    await this._sendMessage(chatId, this._t('unlink_done'));
-
-    this.emit('device_removed', { telegram_user_id: userId });
+    // Redirect to Settings screen with confirmation instead of instant unlink
+    return this._screenSettings(chatId, userId);
   }
 
   // ─── Tunnel Commands ──────────────────────────────────────────────────────
@@ -1942,6 +1829,9 @@ class TelegramBot extends EventEmitter {
   }
 
   async _cmdUrl(chatId) {
+    const navButtons = { reply_markup: JSON.stringify({ inline_keyboard: [
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+    ] }) };
     const statusPromise = new Promise(resolve => {
       const timer = setTimeout(() => resolve(null), 500);
       this.emit('tunnel_get_status', (status) => {
@@ -1952,9 +1842,9 @@ class TelegramBot extends EventEmitter {
 
     const status = await statusPromise;
     if (status?.running && status.publicUrl) {
-      await this._sendMessage(chatId, `🔗 ${status.publicUrl}`);
+      await this._sendMessage(chatId, `🔗 ${status.publicUrl}`, navButtons);
     } else {
-      await this._sendMessage(chatId, this._t('tn_not_running'));
+      await this._sendMessage(chatId, this._t('tn_not_running'), navButtons);
     }
   }
 
@@ -2128,7 +2018,7 @@ class TelegramBot extends EventEmitter {
           const attachNote = attachments.length > 0 ? ` (+ ${attachments.length} file${attachments.length > 1 ? 's' : ''})` : '';
           await this._sendMessage(chatId, this._t('compose_sent', { note: attachNote }), {
             reply_markup: JSON.stringify({ inline_keyboard: [[
-              { text: '🏠 Menu', callback_data: 'm:menu' },
+              { text: this._t('btn_back_menu'), callback_data: 'm:menu' },
               { text: '💬 ' + this._t('btn_back_chats'), callback_data: 'c:list:0' },
             ]] }),
           });
@@ -2345,6 +2235,39 @@ class TelegramBot extends EventEmitter {
     }
   }
 
+  /**
+   * Smart ✉ Write button handler (persistent keyboard).
+   * If session active → compose mode directly (1 tap!).
+   * If no session but project set → open chats for that project.
+   * If nothing → open projects list.
+   */
+  async _handleWriteButton(chatId, userId) {
+    const ctx = this._getContext(userId);
+
+    if (ctx.sessionId) {
+      // Has active session — go directly to compose
+      ctx.composing = true;
+      let composeText = this._t('compose_mode');
+      const sess = this.db.prepare('SELECT title, workdir FROM sessions WHERE id = ?').get(ctx.sessionId);
+      if (sess) {
+        const sessTitle = (sess.title || this._t('chat_untitled')).substring(0, 40);
+        const projName = (sess.workdir || '').split('/').filter(Boolean).pop() || '';
+        composeText += `\n\n${projName ? `📁 ${this._escHtml(projName)} → ` : ''}💬 ${this._escHtml(sessTitle)}`;
+      }
+      await this._showScreen(chatId, userId, composeText,
+        [[{ text: this._t('btn_cancel'), callback_data: 'd:overview' }]]);
+      return;
+    }
+
+    if (ctx.projectWorkdir) {
+      // Has project but no session — show chats for this project
+      return this._screenChats(chatId, userId, 'c:list:0');
+    }
+
+    // Nothing selected — show projects
+    return this._screenProjects(chatId, userId, 'p:list:0');
+  }
+
   async _screenProjects(chatId, userId, data) {
     const page = parseInt(data.split(':')[2] || '0', 10) || 0;
     const perPage = 5;
@@ -2411,7 +2334,7 @@ class TelegramBot extends EventEmitter {
       [{ text: this._t('btn_git_log'), callback_data: 'pm:git' }, { text: this._t('btn_diff'), callback_data: 'pm:diff' }],
       [{ text: this._t('btn_tasks'), callback_data: 't:list' }],
       [{ text: this._t('btn_new_chat'), callback_data: 'c:new' }, { text: this._t('btn_new_task'), callback_data: 't:new' }],
-      [{ text: this._t('btn_back_projects'), callback_data: 'p:list' }, { text: '🏠 Menu', callback_data: 'm:menu' }],
+      [{ text: this._t('btn_back_projects'), callback_data: 'p:list' }, { text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
     ];
 
     await this._editScreen(chatId, ctx.screenMsgId, `📁 <b>${this._escHtml(name)}</b>${this._t('project_choose')}`, keyboard);
@@ -2529,81 +2452,83 @@ class TelegramBot extends EventEmitter {
     ).all(sid);
 
     // Build context info
-    const title = session.title || 'Untitled';
+    const title = session.title || this._t('chat_untitled');
     const projectName = (session.workdir || ctx.projectWorkdir || '').split('/').filter(Boolean).pop() || '';
     const projectLine = projectName ? `📁 ${this._escHtml(projectName)} → ` : '';
 
-    // Delete old screen message
-    if (ctx.screenMsgId && ctx.screenChatId === chatId) {
-      try {
-        await this._callApi('deleteMessage', { chat_id: chatId, message_id: ctx.screenMsgId });
-      } catch (e) { /* ignore */ }
-      ctx.screenMsgId = null;
-    }
-
     if (mode === 'all') {
-      // ── Full paginated view ──
       return this._screenDialogFull(chatId, userId, allMsgs, { title, projectLine });
     }
 
-    // ── Overview mode: first msg + ... + last question + last answer ──
+    // ── Overview mode: single-message digest ──
+    // Everything fits in one editMessageText — no message spam!
 
-    // Select which messages to show
-    const showMsgs = [];
+    const parts = [];
+    // Header
+    parts.push(`${projectLine}💬 <b>${this._escHtml(title)}</b>`);
+    parts.push('─'.repeat(25));
+    parts.push(this._t('dialog_messages', { count: allMsgs.length }));
 
-    if (allMsgs.length <= 4) {
-      // Few messages — show all, no separator
-      showMsgs.push(...allMsgs.map(m => ({ msg: m })));
+    if (allMsgs.length === 0) {
+      parts.push('');
+      parts.push(this._t('chat_no_messages'));
     } else {
-      // First message
-      showMsgs.push({ msg: allMsgs[0] });
-
-      // Separator
-      const skipped = allMsgs.length - 3; // first + last user + last assistant
-      showMsgs.push({ separator: true, count: skipped });
-
-      // Find last user message and last assistant message
-      let lastUser = null, lastAssistant = null;
-      for (let i = allMsgs.length - 1; i >= 1; i--) {
-        if (!lastAssistant && allMsgs[i].role === 'assistant') lastAssistant = allMsgs[i];
-        if (!lastUser && allMsgs[i].role === 'user') lastUser = allMsgs[i];
-        if (lastUser && lastAssistant) break;
+      // Build inline digest: first msg + separator + last user + last assistant
+      const showMsgs = [];
+      if (allMsgs.length <= 4) {
+        showMsgs.push(...allMsgs);
+      } else {
+        showMsgs.push(allMsgs[0]);
+        showMsgs.push(null); // separator placeholder
+        let lastUser = null, lastAssistant = null;
+        for (let i = allMsgs.length - 1; i >= 1; i--) {
+          if (!lastAssistant && allMsgs[i].role === 'assistant') lastAssistant = allMsgs[i];
+          if (!lastUser && allMsgs[i].role === 'user') lastUser = allMsgs[i];
+          if (lastUser && lastAssistant) break;
+        }
+        if (lastUser) showMsgs.push(lastUser);
+        if (lastAssistant) showMsgs.push(lastAssistant);
       }
 
-      if (lastUser) showMsgs.push({ msg: lastUser });
-      if (lastAssistant) showMsgs.push({ msg: lastAssistant });
-    }
+      for (const msg of showMsgs) {
+        if (msg === null) {
+          // Separator
+          const skipped = allMsgs.length - 3;
+          parts.push('');
+          parts.push(this._t('dialog_separator', { count: skipped }));
+          parts.push('');
+          continue;
+        }
 
-    // ── Header ──
-    const headerLines = [
-      `${projectLine}💬 <b>${this._escHtml(title)}</b>`,
-      `${'─'.repeat(25)}`,
-      this._t('dialog_messages', { count: allMsgs.length }),
-    ];
-    await this._sendMessage(chatId, headerLines.join('\n'), { parse_mode: 'HTML' }).catch(() =>
-      this._sendMessage(chatId, headerLines.join('\n').replace(/<[^>]+>/g, ''))
-    );
-
-    // ── Bubbles ──
-    for (const item of showMsgs) {
-      if (item.separator) {
-        await this._sendMessage(chatId, this._t('dialog_separator', { count: item.count }), { parse_mode: 'HTML' });
-        continue;
+        const icon = msg.role === 'user' ? '👤' : '🤖';
+        const time = new Date(msg.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+        const source = msg.source === 'telegram' ? ' 📱' : '';
+        let content = this._sanitize(msg.content || '');
+        content = this._mdToHtml(content);
+        // Truncate each message to keep total under 4096
+        const maxLen = allMsgs.length <= 4 ? 600 : 350;
+        if (content.length > maxLen) {
+          content = content.slice(0, maxLen) + '\n<i>' + this._t('dialog_truncated') + '</i>';
+        }
+        parts.push('─'.repeat(25));
+        parts.push(`${icon} <b>${this._escHtml(msg.role)}</b>${source} · ${time}`);
+        parts.push(content);
       }
-
-      await this._sendBubble(chatId, item.msg);
     }
 
-    // ── Footer ──
-    const footerText = `${projectLine}💬 <b>${this._escHtml(title)}</b>`;
+    const text = parts.join('\n');
 
     const keyboard = [
       [{ text: this._t('btn_write'), callback_data: 'cm:compose' }, { text: this._t('btn_all_messages'), callback_data: 'd:all:0' }],
-      [{ text: '📁 Files', callback_data: 'f:.' }, { text: '📋 Diff', callback_data: 'pm:diff' }, { text: '📜 Log', callback_data: 'pm:git' }],
+      [{ text: this._t('btn_files'), callback_data: 'f:.' }, { text: this._t('btn_diff'), callback_data: 'pm:diff' }, { text: this._t('btn_git_log'), callback_data: 'pm:git' }],
       [{ text: '🔄', callback_data: 'd:overview' }, { text: this._t('btn_back_chats'), callback_data: 'c:list:0' }, { text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
     ];
 
-    await this._showScreen(chatId, userId, footerText, keyboard);
+    if (ctx.screenMsgId && ctx.screenChatId === chatId) {
+      await this._editScreen(chatId, ctx.screenMsgId, text, keyboard);
+    } else {
+      await this._showScreen(chatId, userId, text, keyboard);
+    }
   }
 
   async _screenDialogFull(chatId, userId, allMsgs, { title, projectLine }) {
@@ -2615,23 +2540,27 @@ class TelegramBot extends EventEmitter {
     const offset = page * PAGE_SIZE;
     const msgs = allMsgs.slice(offset, offset + PAGE_SIZE);
 
-    // ── Header ──
-    const headerLines = [
-      `${projectLine}💬 <b>${this._escHtml(title)}</b>`,
-      `${'─'.repeat(25)}`,
-      this._t('dialog_page', { count: allMsgs.length, page: page + 1, total: totalPages }),
-    ];
-    await this._sendMessage(chatId, headerLines.join('\n'), { parse_mode: 'HTML' }).catch(() =>
-      this._sendMessage(chatId, headerLines.join('\n').replace(/<[^>]+>/g, ''))
-    );
+    // Build single message with all content inline
+    const parts = [];
+    parts.push(`${projectLine}💬 <b>${this._escHtml(title)}</b>`);
+    parts.push('─'.repeat(25));
+    parts.push(this._t('dialog_page', { count: allMsgs.length, page: page + 1, total: totalPages }));
 
-    // ── Bubbles ──
     for (const msg of msgs) {
-      await this._sendBubble(chatId, msg);
+      const icon = msg.role === 'user' ? '👤' : '🤖';
+      const time = new Date(msg.created_at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+      const source = msg.source === 'telegram' ? ' 📱' : '';
+      let content = this._sanitize(msg.content || '');
+      content = this._mdToHtml(content);
+      if (content.length > 500) {
+        content = content.slice(0, 500) + '\n<i>' + this._t('dialog_truncated') + '</i>';
+      }
+      parts.push('─'.repeat(25));
+      parts.push(`${icon} <b>${this._escHtml(msg.role)}</b>${source} · ${time}`);
+      parts.push(content);
     }
 
-    // ── Footer ──
-    const footerText = this._t('dialog_page_short', { page: page + 1, total: totalPages, count: allMsgs.length });
+    const text = parts.join('\n');
 
     const navRow = [];
     if (page > 0) navRow.push({ text: '⬅️', callback_data: `d:all:${page - 1}` });
@@ -2644,7 +2573,11 @@ class TelegramBot extends EventEmitter {
       [{ text: this._t('btn_back_overview'), callback_data: 'd:overview' }, { text: this._t('btn_back_chats'), callback_data: 'c:list:0' }, { text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
     ];
 
-    await this._showScreen(chatId, userId, footerText, keyboard);
+    if (ctx.screenMsgId && ctx.screenChatId === chatId) {
+      await this._editScreen(chatId, ctx.screenMsgId, text, keyboard);
+    } else {
+      await this._showScreen(chatId, userId, text, keyboard);
+    }
   }
 
   async _sendBubble(chatId, msg) {
@@ -2680,7 +2613,7 @@ class TelegramBot extends EventEmitter {
 
   async _showFullMessage(chatId, msgId) {
     const msg = this.db.prepare('SELECT * FROM messages WHERE id = ?').get(msgId);
-    if (!msg) return this._sendMessage(chatId, '❌ Message not found');
+    if (!msg) return this._sendMessage(chatId, this._t('chat_not_found'));
 
     const icon = msg.role === 'user' ? '👤' : '🤖';
     let content = this._sanitize(msg.content || '');
@@ -2700,13 +2633,13 @@ class TelegramBot extends EventEmitter {
         // Last chunk: full action set
         if (isForumTopic) {
           buttons.push([
-            { text: '💬 Continue', callback_data: 'fm:compose' },
-            { text: '📋 Diff', callback_data: 'fm:diff' },
-            { text: '📁 Files', callback_data: 'fm:files' },
+            { text: this._t('fm_btn_continue'), callback_data: 'fm:compose' },
+            { text: this._t('fm_btn_diff'), callback_data: 'fm:diff' },
+            { text: this._t('fm_btn_files'), callback_data: 'fm:files' },
           ]);
           buttons.push([
-            { text: '📜 History', callback_data: 'fm:history' },
-            { text: '🆕 New', callback_data: 'fm:new' },
+            { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+            { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
           ]);
         } else {
           buttons.push([
@@ -2718,7 +2651,7 @@ class TelegramBot extends EventEmitter {
       } else {
         // Intermediate chunks: compact action button so user is never stranded
         if (isForumTopic) {
-          buttons.push([{ text: '💬 Continue', callback_data: 'fm:compose' }]);
+          buttons.push([{ text: this._t('fm_btn_continue'), callback_data: 'fm:compose' }]);
         } else {
           buttons.push([{ text: this._t('btn_back_overview'), callback_data: 'd:overview' }]);
         }
@@ -2837,7 +2770,7 @@ class TelegramBot extends EventEmitter {
       if (ctx.sessionId) {
         const sess = this.db.prepare('SELECT title, workdir FROM sessions WHERE id = ?').get(ctx.sessionId);
         if (sess) {
-          const sessTitle = (sess.title || 'Untitled').substring(0, 40);
+          const sessTitle = (sess.title || this._t('chat_untitled')).substring(0, 40);
           const projName = (sess.workdir || '').split('/').filter(Boolean).pop() || '';
           composeText += `\n\n${projName ? `📁 ${this._escHtml(projName)} → ` : ''}💬 ${this._escHtml(sessTitle)}`;
         }
@@ -3212,7 +3145,7 @@ class TelegramBot extends EventEmitter {
           threadId: msg.message_thread_id || null,
           attachments: [attachment],
           callback: (err) => {
-            if (err) this._sendMessage(chatId, `❌ ${this._escHtml(err.message || 'Send failed')}`);
+            if (err) this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message || 'error') }));
           }
         });
       } else if (ctx.composing && ctx.sessionId) {
@@ -3220,7 +3153,7 @@ class TelegramBot extends EventEmitter {
         ctx.pendingAttachments = ctx.pendingAttachments || [];
         ctx.pendingAttachments.push(attachment);
         await this._sendMessage(chatId,
-          `📎 <b>${this._escHtml(fileName)}</b> attached (${Math.round(buffer.length / 1024)}KB)\nSend a text message to include it, or send more files.`,
+          this._t('attach_pending', { name: this._escHtml(fileName), size: Math.round(buffer.length / 1024) }),
           { parse_mode: 'HTML' }
         );
       } else if (ctx.sessionId) {
@@ -3228,12 +3161,12 @@ class TelegramBot extends EventEmitter {
         ctx.pendingAttachments = ctx.pendingAttachments || [];
         ctx.pendingAttachments.push(attachment);
         await this._sendMessage(chatId,
-          `📎 <b>${this._escHtml(fileName)}</b> attached\nNow send a text message with your question about this file.`,
+          this._t('attach_pending_ask', { name: this._escHtml(fileName) }),
           {
             parse_mode: 'HTML',
             reply_markup: JSON.stringify({
               inline_keyboard: [[
-                { text: '❌ Cancel', callback_data: 'd:clear_attach' },
+                { text: this._t('btn_cancel'), callback_data: 'd:clear_attach' },
               ]],
             }),
           }
@@ -3257,12 +3190,12 @@ class TelegramBot extends EventEmitter {
         ctx.pendingAttachments = ctx.pendingAttachments || [];
         ctx.pendingAttachments.push(attachment);
         await this._sendMessage(chatId,
-          `📎 <b>${this._escHtml(fileName)}</b> attached\nNow send a text message with your question about this file.`,
+          this._t('attach_pending_ask', { name: this._escHtml(fileName) }),
           {
             parse_mode: 'HTML',
             reply_markup: JSON.stringify({
               inline_keyboard: [[
-                { text: '❌ Cancel', callback_data: 'd:clear_attach' },
+                { text: this._t('btn_cancel'), callback_data: 'd:clear_attach' },
               ]],
             }),
           }
@@ -3356,9 +3289,9 @@ class TelegramBot extends EventEmitter {
 
     const keyboard = {
       inline_keyboard: [[
-        { text: '💬 View', callback_data: `d:view:${sessionId}` },
-        { text: '📝 Continue', callback_data: `d:compose:${sessionId}` },
-        { text: '🏠 Menu', callback_data: 'm:menu' },
+        { text: this._t('fm_btn_view'), callback_data: `d:view:${sessionId}` },
+        { text: this._t('fm_btn_resume'), callback_data: `d:compose:${sessionId}` },
+        { text: this._t('btn_back_menu'), callback_data: 'm:menu' },
       ]],
     };
 
@@ -3406,12 +3339,15 @@ class TelegramBot extends EventEmitter {
 
   async _cmdStop(chatId, userId) {
     const ctx = this._getContext(userId);
+    const navButtons = { reply_markup: JSON.stringify({ inline_keyboard: [
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+    ] }) };
     if (!ctx.sessionId) {
-      return this._sendMessage(chatId, this._t('error_no_session'));
+      return this._sendMessage(chatId, this._t('error_no_session'), navButtons);
     }
 
     this.emit('stop_task', { sessionId: ctx.sessionId, chatId });
-    await this._sendMessage(chatId, this._t('stop_sent'));
+    await this._sendMessage(chatId, this._t('stop_sent'), navButtons);
   }
 
   // ─── Forum Mode ────────────────────────────────────────────────────────
@@ -3421,10 +3357,13 @@ class TelegramBot extends EventEmitter {
    */
   async _cmdForum(chatId, userId) {
     const device = this._stmts.getDevice.get(userId);
+    const navButtons = { reply_markup: JSON.stringify({ inline_keyboard: [
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
+    ] }) };
     if (device?.forum_chat_id) {
-      return this._sendMessage(chatId, this._t('forum_already'));
+      return this._sendMessage(chatId, this._t('forum_already'), navButtons);
     }
-    await this._sendMessage(chatId, this._t('forum_instructions'));
+    await this._sendMessage(chatId, this._t('forum_instructions'), navButtons);
   }
 
   /**
@@ -3589,6 +3528,11 @@ class TelegramBot extends EventEmitter {
         path: this._escHtml(workdir),
       }), {
         message_thread_id: topic.message_thread_id,
+        reply_markup: JSON.stringify({ inline_keyboard: [[
+          { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+          { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
+          { text: this._t('fm_btn_info'), callback_data: 'fm:info' },
+        ]] }),
       });
       if (pinMsg) {
         this._callApi('pinChatMessage', { chat_id: chatId, message_id: pinMsg.message_id, disable_notification: true }).catch(() => {});
@@ -3664,7 +3608,7 @@ class TelegramBot extends EventEmitter {
     const text = (msg.text || '').trim();
     const cmd = text.split(/\s+/)[0].toLowerCase().replace(/@\w+$/, '');
 
-    if (cmd === '/status') return this._cmdStatus(chatId);
+    if (cmd === '/status') return this._cmdStatus(chatId, msg.from.id);
     if (cmd === '/help') return this._sendMessage(chatId, this._t('forum_help_general'));
 
     // Unknown command feedback
@@ -3725,7 +3669,7 @@ class TelegramBot extends EventEmitter {
         case '/stop':
           return this._cmdStop(chatId, userId);
         case '/status':
-          return this._cmdStatus(chatId);
+          return this._cmdStatus(chatId, userId);
         case '/help':
           return this._sendMessage(chatId, this._t('forum_help_project'));
         case '/info':
@@ -3750,10 +3694,10 @@ class TelegramBot extends EventEmitter {
         // Restore last session + show orientation
         ctx.sessionId = existing[0].id;
         this._saveDeviceContext(userId);
-        const title = (existing[0].title || 'Untitled').substring(0, 40);
+        const title = (existing[0].title || this._t('chat_untitled')).substring(0, 40);
         const buttons = [
-          { text: '📜 History', callback_data: 'fm:history' },
-          { text: '🆕 New', callback_data: 'fm:new' },
+          { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+          { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
         ];
         await this._sendMessage(chatId,
           `📌 ${this._escHtml(title)} (${existing[0].msg_count || 0} msg)\n` +
@@ -3800,7 +3744,7 @@ class TelegramBot extends EventEmitter {
 
     if (!silent) {
       const buttons = [
-        { text: '📜 History', callback_data: 'fm:history' },
+        { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
       ];
       await this._sendMessage(chatId, this._t('forum_session_started'), {
         reply_markup: JSON.stringify({ inline_keyboard: [buttons] }),
@@ -3821,21 +3765,21 @@ class TelegramBot extends EventEmitter {
     if (ctx.sessionId) {
       const sess = this.db.prepare('SELECT title, updated_at FROM sessions WHERE id = ?').get(ctx.sessionId);
       if (sess) {
-        const title = (sess.title || 'Untitled').substring(0, 45);
+        const title = (sess.title || this._t('chat_untitled')).substring(0, 45);
         const ago = this._timeAgo(sess.updated_at);
         const msgCount = this.db.prepare('SELECT COUNT(*) as c FROM messages WHERE session_id = ?').get(ctx.sessionId)?.c || 0;
         text += `\n💬 <b>${this._escHtml(title)}</b>\n📊 ${msgCount} msg · ${ago}`;
       }
     } else {
-      text += '\n💬 <i>No active session</i>';
+      text += `\n💬 <i>${this._t('error_no_session')}</i>`;
     }
 
-    text += `\n📜 ${rows.length} total sessions`;
+    text += `\n📜 ${this._t('status_sessions', { count: rows.length })}`;
 
     const buttons = [
-      { text: '📄 Last 5', callback_data: 'fm:last' },
-      { text: '📜 History', callback_data: 'fm:history' },
-      { text: '🆕 New', callback_data: 'fm:new' },
+      { text: this._t('fm_btn_last5'), callback_data: 'fm:last' },
+      { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+      { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
     ];
     await this._sendMessage(chatId, text, {
       reply_markup: JSON.stringify({ inline_keyboard: [buttons] }),
@@ -3858,7 +3802,7 @@ class TelegramBot extends EventEmitter {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const active = r.id === ctx.sessionId ? ' ◀️' : '';
-      const title = (r.title || 'Untitled').substring(0, 40);
+      const title = (r.title || this._t('chat_untitled')).substring(0, 40);
       const ago = this._timeAgo(r.updated_at);
       text += `\n${i + 1}. ${this._escHtml(title)}  ·  ${r.msg_count} msgs  ·  ${ago}${active}`;
       // Inline button for quick switching (2 buttons per row)
@@ -3989,26 +3933,26 @@ class TelegramBot extends EventEmitter {
           `SELECT role, type, content FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 5`
         ).all(session.id).reverse();
 
-        let text = `💬 <b>${this._escHtml((session.title || 'Untitled').substring(0, 50))}</b>\n`;
+        let text = `💬 <b>${this._escHtml((session.title || this._t('chat_untitled')).substring(0, 50))}</b>\n`;
         for (const m of msgs) {
           const icon = m.role === 'user' ? '👤' : '🤖';
           const content = (m.content || '').substring(0, 150).replace(/\n/g, ' ');
           text += `\n${icon} ${this._escHtml(content)}`;
         }
-        if (msgs.length === 0) text += '\n<i>No messages yet</i>';
+        if (msgs.length === 0) text += `\n<i>${this._t('chat_no_messages')}</i>`;
 
         // Send message to project topic + provide direct link for navigation
         const topicUrl = this._topicLink(chatId, projectTopic.thread_id);
-        text += `\n\n💡 <i>Session activated — write in the project topic to continue.</i>`;
+        text += `\n\n${this._t('fm_session_activated_hint')}`;
 
         const buttons = [
           [
-            { text: '💬 Continue', callback_data: 'fm:compose' },
-            { text: '📄 Full', callback_data: 'fm:last' },
+            { text: this._t('fm_btn_continue'), callback_data: 'fm:compose' },
+            { text: this._t('fm_btn_full'), callback_data: 'fm:last' },
           ],
           [
-            { text: '📜 History', callback_data: 'fm:history' },
-            { text: '🆕 New', callback_data: 'fm:new' },
+            { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+            { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
           ],
         ];
 
@@ -4019,10 +3963,10 @@ class TelegramBot extends EventEmitter {
         });
 
         // Also send a navigation link in the Activity topic so user can jump there
-        await this._sendMessage(chatId, `✅ Session activated in project topic.`, {
+        await this._sendMessage(chatId, this._t('fm_session_activated_short'), {
           message_thread_id: this._currentThreadId,
           reply_markup: JSON.stringify({ inline_keyboard: [
-            [{ text: '➡️ Go to project', url: topicUrl }],
+            [{ text: this._t('fm_btn_go_project'), url: topicUrl }],
           ]}),
         });
         return;
@@ -4034,11 +3978,11 @@ class TelegramBot extends EventEmitter {
         if (isNaN(threadId)) return;
 
         const topicUrl = this._topicLink(chatId, threadId);
-        await this._sendMessage(chatId, '📁 <i>Write a message in the project topic to start working with Claude.</i>', {
+        await this._sendMessage(chatId, this._t('fm_write_in_topic'), {
           message_thread_id: this._currentThreadId,
           parse_mode: 'HTML',
           reply_markup: JSON.stringify({ inline_keyboard: [
-            [{ text: '➡️ Go to project', url: topicUrl }],
+            [{ text: this._t('fm_btn_go_project'), url: topicUrl }],
           ]}),
         });
         return;
@@ -4060,15 +4004,15 @@ class TelegramBot extends EventEmitter {
     ctx.sessionId = rows[idx].id;
     this._saveDeviceContext(userId);
 
-    const title = (rows[idx].title || 'Untitled').substring(0, 50);
+    const title = (rows[idx].title || this._t('chat_untitled')).substring(0, 50);
     const msgCount = rows[idx].msg_count || 0;
     const text = this._t('forum_switch_session', { title: this._escHtml(title) })
       + `\n📊 ${msgCount} msg`;
 
     const buttons = [
-      { text: '📄 Last 5', callback_data: 'fm:last' },
-      { text: '📜 History', callback_data: 'fm:history' },
-      { text: '🆕 New', callback_data: 'fm:new' },
+      { text: this._t('fm_btn_last5'), callback_data: 'fm:last' },
+      { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+      { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
     ];
     await this._sendMessage(chatId, text, {
       reply_markup: JSON.stringify({ inline_keyboard: [buttons] }),
@@ -4173,7 +4117,7 @@ class TelegramBot extends EventEmitter {
             const projectTopic = topics.find(t => t.type === 'project' && t.workdir === task.workdir);
             if (projectTopic) {
               options.reply_markup = JSON.stringify({ inline_keyboard: [[
-                { text: '📁 Go to project', callback_data: `fa:project:${projectTopic.thread_id}` },
+                { text: this._t('fm_btn_go_project_files'), callback_data: `fa:project:${projectTopic.thread_id}` },
               ]] });
             }
           }
@@ -4242,10 +4186,10 @@ class TelegramBot extends EventEmitter {
         // Use URL buttons for cross-topic navigation — Telegram client navigates directly
         if (projectTopic) {
           const topicUrl = this._topicLink(forumChatId, projectTopic.thread_id);
-          buttons.push({ text: '💬 Open chat', url: topicUrl });
+          buttons.push({ text: this._t('fm_btn_open_chat'), url: topicUrl });
         } else {
           // Fallback: callback button to auto-create project topic + show preview
-          buttons.push({ text: '💬 Open chat', callback_data: `fa:open:${sessionId}` });
+          buttons.push({ text: this._t('fm_btn_open_chat'), callback_data: `fa:open:${sessionId}` });
         }
 
         options.reply_markup = JSON.stringify({ inline_keyboard: [buttons] });
@@ -4310,22 +4254,22 @@ class TelegramBot extends EventEmitter {
     if (ctx.sessionId) {
       const sess = this.db.prepare('SELECT title, updated_at FROM sessions WHERE id = ?').get(ctx.sessionId);
       if (sess) {
-        const title = (sess.title || 'Untitled').substring(0, 45);
+        const title = (sess.title || this._t('chat_untitled')).substring(0, 45);
         const ago = this._timeAgo(sess.updated_at);
         const msgCount = this.db.prepare('SELECT COUNT(*) as c FROM messages WHERE session_id = ?').get(ctx.sessionId)?.c || 0;
         text += `\n💬 <b>${this._escHtml(title)}</b>\n📊 ${msgCount} msg · ${ago}`;
       }
     } else {
-      text += '\n💬 <i>No active session</i>';
+      text += `\n💬 <i>${this._t('error_no_session')}</i>`;
     }
 
     const rows = this._stmts.getSessionsByWorkdir.all(workdir);
-    text += `\n📜 ${rows.length} total sessions`;
+    text += `\n📜 ${this._t('status_sessions', { count: rows.length })}`;
 
     const keyboard = [
       [{ text: this._t('btn_chats'), callback_data: 'c:list:0' },
        { text: this._t('btn_new_chat'), callback_data: 'c:new' }],
-      [{ text: '🏠 Menu', callback_data: 'm:menu' }],
+      [{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }],
     ];
 
     await this._sendMessage(chatId, text, {
@@ -4414,13 +4358,13 @@ class TelegramBot extends EventEmitter {
       const actionButtons = isForumTopic
         ? [
             [
-              { text: '📄 Full', callback_data: 'fm:last' },
-              { text: '💬 Continue', callback_data: 'fm:compose' },
-              { text: '📋 Diff', callback_data: 'fm:diff' },
+              { text: this._t('fm_btn_full'), callback_data: 'fm:last' },
+              { text: this._t('fm_btn_continue'), callback_data: 'fm:compose' },
+              { text: this._t('fm_btn_diff'), callback_data: 'fm:diff' },
             ],
             [
-              { text: '📜 History', callback_data: 'fm:history' },
-              { text: '🆕 New', callback_data: 'fm:new' },
+              { text: this._t('fm_btn_history'), callback_data: 'fm:history' },
+              { text: this._t('fm_btn_new'), callback_data: 'fm:new' },
             ],
           ]
         : [
