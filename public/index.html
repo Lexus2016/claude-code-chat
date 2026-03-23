@@ -2042,9 +2042,13 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
     <div class="sec">
       <div class="sec-title" role="button" tabindex="0" aria-expanded="true" onclick="toggleSec('sshHosts')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSec('sshHosts')}">
         <span data-i18n="sec.sshHosts">SSH Хости</span>
-        <span class="badge" id="sshHostCount">0</span>
+        <div style="display:flex;align-items:center;gap:5px;margin-left:auto">
+          <button class="sec-filter-btn" id="sshHostsFilterBtn" onclick="event.stopPropagation();toggleSecFilter('sshHosts')" title="Фільтр"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+          <span class="badge" id="sshHostCount">0</span>
+        </div>
       </div>
       <div class="sec-body" id="sshHostsBody">
+        <div class="sec-filter-row" id="sshHostsFilterRow"><input type="text" id="sshHostsFilterInp" placeholder="Фільтр..." aria-label="Фільтр SSH хостів" oninput="applySecFilter('sshHosts',this.value)" onkeydown="if(event.key==='Escape'){clearSecFilter('sshHosts');event.stopPropagation()}"><button class="sfx" onclick="clearSecFilter('sshHosts')">×</button></div>
         <div id="sshHostList"></div>
         <button class="add-btn" onclick="openAddHostModal()" data-i18n="ssh.add">＋ Додати SSH хост</button>
       </div>
@@ -6493,11 +6497,12 @@ function toggleSec(id) {
 
 // ─── Section quick-filter ──────────────────────────────────────────────────
 const _SEC_FILTER_CFG = {
-  proj:   { listId: 'projList',   itemSel: '.ci' },
-  hist:   { listId: 'histList',   itemSel: '.hist-item' },
-  mcp:    { listId: 'mcpList',    itemSel: '.ci' },
-  skills: { listId: 'skillsList', itemSel: '.ci' },
-  cmds:   { listId: 'cmdsList',   itemSel: '.ci' }
+  proj:     { listId: 'projList',    itemSel: '.ci' },
+  hist:     { listId: 'histList',    itemSel: '.hist-item' },
+  mcp:      { listId: 'mcpList',     itemSel: '.ci' },
+  skills:   { listId: 'skillsList',  itemSel: '.ci' },
+  cmds:     { listId: 'cmdsList',    itemSel: '.ci' },
+  sshHosts: { listId: 'sshHostList', itemSel: '.rh-item' }
 };
 
 function toggleSecFilter(id) {
@@ -9760,6 +9765,7 @@ function renderRemoteHostsList() {
       <button class="rm"  onclick="deleteRemoteHost('${h.id}')" title="${t('ssh.del.title')}">✕</button>
     </div>`;
   }).join('');
+  _reapplySecFilter('sshHosts');
 }
 
 function renderRemoteHostSelect() {
