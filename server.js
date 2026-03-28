@@ -1456,8 +1456,8 @@ class TelegramProxy {
     // Store pending state on the bot's user context
     if (this._userId) {
       const ctx = this._bot._getContext(this._userId);
-      ctx.pendingAskRequestId = data.requestId;
-      ctx.pendingAskQuestions = questions;
+      ctx.state = 'AWAITING_ASK_RESPONSE';
+      ctx.stateData = { askRequestId: data.requestId, askQuestions: questions };
     }
 
     // Build message text (i18n-aware)
@@ -1504,8 +1504,10 @@ class TelegramProxy {
   async _handleAskUserDismiss(reason) {
     if (this._userId) {
       const ctx = this._bot._getContext(this._userId);
-      ctx.pendingAskRequestId = null;
-      ctx.pendingAskQuestions = null;
+      if (ctx.state === 'AWAITING_ASK_RESPONSE') {
+        ctx.state = 'IDLE';
+        ctx.stateData = null;
+      }
     }
     await this._tgSend( reason).catch(() => {});
     // Resume typing indicator (guard against double-start)
@@ -4936,8 +4938,10 @@ function _clearTelegramAskState(sessionId) {
   const task = activeTasks.get(sessionId);
   if (task?.proxy?._userId) {
     const ctx = telegramBot._getContext(task.proxy._userId);
-    ctx.pendingAskRequestId = null;
-    ctx.pendingAskQuestions = null;
+    if (ctx.state === 'AWAITING_ASK_RESPONSE') {
+      ctx.state = 'IDLE';
+      ctx.stateData = null;
+    }
   }
 }
 
@@ -5109,8 +5113,10 @@ async function processTelegramChat({ sessionId, text, userId, chatId, threadId, 
     // Clean up pending ask_user state on Telegram bot context
     if (userId && telegramBot) {
       const ctx = telegramBot._getContext(userId);
-      ctx.pendingAskRequestId = null;
-      ctx.pendingAskQuestions = null;
+      if (ctx.state === 'AWAITING_ASK_RESPONSE') {
+        ctx.state = 'IDLE';
+        ctx.stateData = null;
+      }
     }
     try { stmts.clearLastUserMsg.run(sessionId); } catch {}
   }
