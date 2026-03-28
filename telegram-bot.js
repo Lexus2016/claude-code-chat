@@ -96,6 +96,10 @@ const SCREEN_TO_CALLBACK = {
   SETTINGS:    's:menu',
 };
 
+// ─── Telegram message constants (used by TelegramProxy) ─────────────────────
+const TG_COLLAPSE_THRESHOLD = 800;
+const TG_PREVIEW_LENGTH = 600;
+
 // ─── Bot Internationalization ───────────────────────────────────────────────
 const BOT_I18N = require('./telegram-bot-i18n');
 
@@ -3577,6 +3581,480 @@ class TelegramBot extends EventEmitter {
 
     return limit; // hard cut
   }
+
+
+  // ─── Public API (used by server.js) ──────────────────────────────────────
+
+  createResponseHandler({ userId, chatId, sessionId, threadId, broadcastToSession }) {
+    return new TelegramProxy(this, chatId, sessionId, userId, threadId, broadcastToSession);
+  }
+
+  sendMessage(chatId, text, options = {}) {
+    return this._sendMessage(chatId, text, options);
+  }
+
+  getContext(userId) {
+    return this._getContext(userId);
+  }
+
+  escHtml(text) {
+    return this._escHtml(text);
+  }
+
+  t(key, params = {}) {
+    return this._t(key, params);
+  }
+}
+
+// ─── Telegram Proxy (duck-typed WsProxy for Telegram bot streaming) ──────────
+class TelegramProxy {
+  constructor(bot, chatId, sessionId, userId, threadId, broadcastToSession) {
+    this._bot = bot;
+    this._chatId = chatId;
+    this._sessionId = sessionId;
+    this._userId = userId;
+    this._threadId = threadId || null;
+    this._broadcastToSession = broadcastToSession || (() => {});
+    this._buffer = '';
+    this._progressMsgId = null;
+    this._updateTimer = null;
+    this._lastEditAt = 0;
+    this._toolsUsed = [];
+    this._finished = false;
+    this._sessionTitle = null; // cached session title for forum indicator
+    this._draftId = (Date.now() % 2147483646) + 1; // non-zero int for sendMessageDraft
+    this._usesDraftStreaming = true; // flips to false on first sendMessageDraft failure
+    // Typing indicator — sends "typing..." action every 4s
+    this._typingInterval = setInterval(() => {
+      const params = { chat_id: this._chatId, action: 'typing' };
+      if (this._threadId) params.message_thread_id = this._threadId;
+      this._bot._callApi('sendChatAction', params).catch(() => {});
+    }, 4000);
+    // Safety net: auto-stop typing after 30 min to prevent interval leak if
+    // neither _finalize nor _sendError are called (e.g. subprocess crash)
+    this._typingSafetyTimer = setTimeout(() => this._stopTyping(), 30 * 60 * 1000);
+    // Send initial typing action immediately
+    const initParams = { chat_id: this._chatId, action: 'typing' };
+    if (this._threadId) initParams.message_thread_id = this._threadId;
+    this._bot._callApi('sendChatAction', initParams).catch(() => {});
+  }
+
+  _stopTyping() {
+    if (this._typingInterval) {
+      clearInterval(this._typingInterval);
+      this._typingInterval = null;
+    }
+    if (this._typingSafetyTimer) {
+      clearTimeout(this._typingSafetyTimer);
+      this._typingSafetyTimer = null;
+    }
+  }
+
+  /** Helper: send message with auto-injected thread_id for forum topics */
+  _tgSend(text, options = {}) {
+    if (this._threadId && !options.message_thread_id) {
+      options.message_thread_id = this._threadId;
+    }
+    return this._bot._sendMessage(this._chatId, text, options);
+  }
+
+  /** Send "Thinking..." indicator in legacy (non-draft) mode */
+  async startThinking() {
+    if (this._usesDraftStreaming) return;
+    const thinkingMsg = await this._tgSend('🤔 <b>Thinking...</b>', {
+      parse_mode: 'HTML',
+      reply_markup: JSON.stringify({ inline_keyboard: [[
+        { text: '🛑 Stop', callback_data: 'cm:stop' },
+        { text: '🏠 Menu', callback_data: 'm:menu' },
+      ]] }),
+    });
+    if (thinkingMsg?.message_id) {
+      this._progressMsgId = thinkingMsg.message_id;
+    }
+  }
+
+  send(raw) {
+    try {
+      const data = JSON.parse(raw);
+      // Also broadcast to web UI watchers
+      this._broadcastToSession(this._sessionId, data);
+
+      if (data.type === 'text') {
+        this._buffer += (data.text || '');
+        this._scheduleUpdate();
+      } else if (data.type === 'tool_use' || data.type === 'tool') {
+        this._toolsUsed.push(data.tool || data.tool_name || 'tool');
+      } else if (data.type === 'done') {
+        this._finalize(data);
+      } else if (data.type === 'error') {
+        this._lastError = data.error || 'Unknown error';
+        if (!this._buffer.trim()) {
+          this._sendError(data);
+        }
+      } else if (data.type === 'ask_user') {
+        this._handleAskUser(data);
+      } else if (data.type === 'ask_user_timeout') {
+        this._handleAskUserDismiss(this._bot._t('ask_timeout'));
+      } else if (data.type === 'notification') {
+        this._handleNotification(data);
+      }
+    } catch (e) {
+      console.error('[TelegramProxy] parse error:', e.message);
+    }
+  }
+
+  // ─── ask_user: Forward Claude's question to Telegram user ────────────────
+  async _handleAskUser(data) {
+    // Pause progress updates while waiting for user input
+    if (this._updateTimer) {
+      clearTimeout(this._updateTimer);
+      this._updateTimer = null;
+    }
+    this._stopTyping();
+
+    const questions = (Array.isArray(data.questions) && data.questions.length) ? data.questions : [{ question: data.question || '?' }];
+    const q = questions[0];
+    const questionText = q.question || data.question || '?';
+
+    // Store pending state on the bot's user context
+    if (this._userId) {
+      const ctx = this._bot._getContext(this._userId);
+      ctx.state = 'AWAITING_ASK_RESPONSE';
+      ctx.stateData = { askRequestId: data.requestId, askQuestions: questions };
+    }
+
+    // Build message text (i18n-aware)
+    const t = (k, v) => this._bot._t(k, v);
+    let text = `❓ <b>${t('ask_title')}</b>\n\n${this._bot._escHtml(questionText)}`;
+
+    // Build inline keyboard
+    const skipLabel = t('ask_skip_btn');
+    let replyMarkup;
+    if (q.options && q.options.length > 0) {
+      // Options mode: show buttons (truncate label to 64 chars for Telegram display)
+      const rows = q.options.map((opt, i) => ([{
+        text: (typeof opt === 'string' ? opt : (opt.label || opt.value || `Option ${i + 1}`)).substring(0, 64),
+        callback_data: `ask:${i}`
+      }]));
+      rows.push([{ text: skipLabel, callback_data: 'ask:skip' }]);
+      replyMarkup = JSON.stringify({ inline_keyboard: rows });
+      text += `\n\n<i>${t('ask_choose_hint')}</i>`;
+    } else {
+      // Free text mode: prompt user to type
+      replyMarkup = JSON.stringify({
+        inline_keyboard: [[{ text: skipLabel, callback_data: 'ask:skip' }]]
+      });
+      text += `\n\n<i>${t('ask_text_hint')}</i>`;
+    }
+
+    // Delete progress message if exists (show clean question)
+    if (this._progressMsgId) {
+      try {
+        await this._bot._callApi('deleteMessage', { chat_id: this._chatId, message_id: this._progressMsgId });
+      } catch {}
+      this._progressMsgId = null;
+    }
+
+    let askMsg;
+    try {
+      askMsg = await this._tgSend( text, { parse_mode: 'HTML', reply_markup: replyMarkup });
+    } catch {
+      // Fallback without HTML
+      askMsg = await this._tgSend( text.replace(/<[^>]+>/g, ''), { reply_markup: replyMarkup }).catch(() => null);
+    }
+
+    // Store original ask message location for cross-context cleanup
+    if (askMsg?.message_id && this._userId) {
+      const ctx = this._bot._getContext(this._userId);
+      if (ctx.stateData) {
+        ctx.stateData.askMsgId = askMsg.message_id;
+        ctx.stateData.askChatId = this._chatId;
+      }
+    }
+
+    // Notify other devices/contexts about the pending question
+    this._bot.notifyAskUser({
+      userId: this._userId,
+      sessionId: this._sessionId,
+      sourceChatId: this._chatId,
+      sourceThreadId: this._threadId,
+      questionText,
+      questions,
+    }).catch(err => {
+      this._bot.log.warn(`[telegram] Ask notification dispatch failed: ${err.message}`);
+    });
+  }
+
+  // Dismiss ask_user UI (timeout or answered elsewhere)
+  async _handleAskUserDismiss(reason) {
+    if (this._userId) {
+      const ctx = this._bot._getContext(this._userId);
+      if (ctx.state === 'AWAITING_ASK_RESPONSE') {
+        ctx.state = 'IDLE';
+        ctx.stateData = null;
+      }
+    }
+    await this._tgSend( reason).catch(() => {});
+    // Resume typing indicator (guard against double-start)
+    if (!this._finished && !this._typingInterval) {
+      this._typingInterval = setInterval(() => {
+        this._bot._callApi('sendChatAction', { chat_id: this._chatId, action: 'typing' }).catch(() => {});
+      }, 4000);
+    }
+  }
+
+  // ─── Notifications: Forward to Telegram ──────────────────────────────────
+  async _handleNotification(data) {
+    const icons = { info: 'ℹ️', warn: '⚠️', error: '❌', success: '✅' };
+    const icon = icons[data.level] || 'ℹ️';
+    const detail = data.detail ? `\n${this._bot._escHtml(data.detail)}` : '';
+    const progress = data.progress ? ` (${data.progress.current}/${data.progress.total})` : '';
+    const text = `${icon} ${this._bot._escHtml(data.title)}${progress}${detail}`;
+    await this._tgSend( text, { parse_mode: 'HTML' }).catch(() => {});
+  }
+
+  _scheduleUpdate() {
+    if (this._finished) return;
+    if (this._updateTimer) return;
+    const elapsed = Date.now() - this._lastEditAt;
+    const baseDelay = this._usesDraftStreaming ? 500 : 3000;
+    const delay = Math.max(baseDelay - elapsed, 200);
+    this._updateTimer = setTimeout(() => this._sendProgress(), delay);
+  }
+
+  async _sendProgress() {
+    this._updateTimer = null;
+    if (this._finished) return;
+    this._lastEditAt = Date.now();
+
+    let preview = this._buffer;
+    if (preview.length > 3500) {
+      preview = '...\n' + preview.slice(-3500);
+    }
+
+    // ── Draft streaming path (sendMessageDraft — no rate limit) ──────────
+    if (this._usesDraftStreaming) {
+      try {
+        const text = (preview || ' ').slice(0, 4096); // plain text only, no parse_mode
+        const params = {
+          chat_id: this._chatId,
+          draft_id: this._draftId,
+          text: text,
+        };
+        if (this._threadId) params.message_thread_id = this._threadId;
+        await this._bot._callApi('sendMessageDraft', params);
+        return;
+      } catch (err) {
+        // First failure: fall back permanently to editMessageText for this proxy instance
+        this._usesDraftStreaming = false;
+        this._bot.log.warn(`[TelegramProxy] sendMessageDraft failed, falling back to editMessageText: ${err.message}`);
+        // Fall through to legacy path below
+      }
+    }
+
+    // ── Legacy editMessageText path (fallback) ──────────────────────────
+    preview = this._bot._escHtml(preview);
+
+    const toolLine = this._toolsUsed.length
+      ? `\n🔧 ${this._bot._escHtml(this._toolsUsed.slice(-3).join(', '))}`
+      : '';
+
+    // Session indicator — cache title on first use
+    let sessionTag = '';
+    if (this._sessionId) {
+      if (this._sessionTitle === null) {
+        try {
+          const sess = this._bot.db.prepare('SELECT title FROM sessions WHERE id = ?').get(this._sessionId);
+          this._sessionTitle = sess?.title || '';
+        } catch { this._sessionTitle = ''; }
+      }
+      if (this._sessionTitle) {
+        sessionTag = ` · <i>${this._bot._escHtml(this._sessionTitle.substring(0, 30))}</i>`;
+      }
+    }
+
+    const text = `⏳ <b>Processing...</b>${sessionTag}${toolLine}\n\n${preview}`;
+
+    // Inline stop button on progress messages so the user always has controls at the bottom
+    const progressButtons = this._threadId
+      ? [{ text: this._bot._t('fm_btn_stop'), callback_data: 'cm:stop' }]
+      : [
+          { text: '🛑 Stop', callback_data: 'cm:stop' },
+          { text: '🏠 Menu', callback_data: 'm:menu' },
+        ];
+    const progressMarkup = JSON.stringify({ inline_keyboard: [progressButtons] });
+
+    try {
+      if (this._progressMsgId) {
+        await this._bot._callApi('editMessageText', {
+          chat_id: this._chatId,
+          message_id: this._progressMsgId,
+          text: text.slice(0, 4096),
+          parse_mode: 'HTML',
+          reply_markup: progressMarkup,
+        }).catch(() => {
+          return this._bot._callApi('editMessageText', {
+            chat_id: this._chatId,
+            message_id: this._progressMsgId,
+            text: text.replace(/<[^>]+>/g, '').slice(0, 4096),
+            reply_markup: progressMarkup,
+          });
+        });
+      } else {
+        const result = await this._tgSend( text.slice(0, 4096), { parse_mode: 'HTML', reply_markup: progressMarkup });
+        if (result && result.message_id) {
+          this._progressMsgId = result.message_id;
+        }
+      }
+    } catch (e) {
+      if (e.message && e.message.includes('429')) {
+        this._updateTimer = setTimeout(() => this._sendProgress(), 6000);
+      }
+    }
+  }
+
+  async _finalize(data) {
+    if (this._finished) return; // already finalized or errored
+    this._finished = true;
+    this._stopTyping();
+    if (this._updateTimer) {
+      clearTimeout(this._updateTimer);
+      this._updateTimer = null;
+    }
+
+    // Delete progress message if exists (legacy mode sends a "Thinking..." message)
+    if (this._progressMsgId) {
+      try {
+        await this._bot._callApi('deleteMessage', {
+          chat_id: this._chatId,
+          message_id: this._progressMsgId
+        });
+      } catch (e) { /* ignore */ }
+      this._progressMsgId = null;
+    }
+    // Note: if using draft streaming, the draft auto-disappears when sendMessage is called below.
+    // No explicit draft cleanup needed — sendMessageDraft drafts vanish on first sendMessage to the same chat.
+
+    // Send final response — collapse large messages with preview + "Show full" button
+    const rawLen = this._buffer.trim().length;
+    const isLarge = rawLen > TG_COLLAPSE_THRESHOLD;
+
+    if (rawLen > 0) {
+      if (!isLarge) {
+        // Short response — send in full
+        const html = this._bot._mdToHtml(this._buffer);
+        const chunks = this._bot._chunkForTelegram(html, MAX_MESSAGE_LENGTH - 100);
+        for (const chunk of chunks) {
+          await this._tgSend(chunk, { parse_mode: 'HTML' }).catch(() => {
+            return this._tgSend(chunk.replace(/<[^>]+>/g, ''));
+          });
+        }
+      } else {
+        // Large response — send preview only, full available via button
+        const previewRaw = this._buffer.substring(0, TG_PREVIEW_LENGTH);
+        // Truncate at last newline to avoid broken lines/fences
+        const lastNl = previewRaw.lastIndexOf('\n');
+        const cleanPreview = lastNl > TG_PREVIEW_LENGTH / 2 ? previewRaw.substring(0, lastNl) : previewRaw;
+        const previewHtml = this._bot._mdToHtml(cleanPreview);
+        const totalChars = rawLen > 1000 ? `${Math.round(rawLen / 1000)}k` : rawLen;
+        const moreIndicator = `\n\n<i>···  ${totalChars} chars — tap 📄 to expand  ···</i>`;
+        await this._tgSend(previewHtml + moreIndicator, { parse_mode: 'HTML' }).catch(() => {
+          return this._tgSend((cleanPreview + `\n\n···  ${totalChars} chars — tap 📄 to expand  ···`).replace(/<[^>]+>/g, ''));
+        });
+      }
+    }
+
+    // Send completion notification with buttons
+    const duration = data.duration ? ` (${Math.round(data.duration / 1000)}s)` : '';
+    const toolsSummary = this._toolsUsed.length ? `\n🔧 Tools: ${this._bot._escHtml([...new Set(this._toolsUsed)].join(', '))}` : '';
+
+    // Session indicator
+    let sessionLine = '';
+    if (this._sessionId) {
+      try {
+        const sess = this._bot.db.prepare('SELECT title FROM sessions WHERE id = ?').get(this._sessionId);
+        if (sess?.title) {
+          sessionLine = `\n💬 ${this._bot._escHtml(sess.title.substring(0, 40))}`;
+        }
+      } catch {}
+    }
+
+    const doneButtons = this._threadId
+      ? [
+          // Row 1: primary actions — continue working, view full response
+          [
+            { text: this._bot._t('fm_btn_continue'), callback_data: 'fm:compose' },
+            ...(isLarge ? [{ text: this._bot._t('fm_btn_full'), callback_data: 'cm:full' }] : []),
+            { text: this._bot._t('fm_btn_diff'), callback_data: 'fm:diff' },
+          ],
+          // Row 2: navigation — files, history, new session
+          [
+            { text: this._bot._t('fm_btn_files'), callback_data: 'fm:files' },
+            { text: this._bot._t('fm_btn_history'), callback_data: 'fm:history' },
+            { text: this._bot._t('fm_btn_new'), callback_data: 'fm:new' },
+          ],
+        ]
+      : [
+          [
+            { text: '💬 Continue', callback_data: 'cm:compose' },
+            ...(isLarge ? [{ text: '📄 Full', callback_data: 'cm:full' }] : []),
+            { text: '🏠 Menu', callback_data: 'm:menu' },
+          ],
+        ];
+    await this._tgSend(
+      `✅ <b>Done</b>${duration}${sessionLine}${toolsSummary}`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({ inline_keyboard: doneButtons })
+      }
+    );
+  }
+
+  async _sendError(data) {
+    if (this._finished) return; // already finalized or errored
+    this._finished = true;
+    this._stopTyping();
+    if (this._updateTimer) {
+      clearTimeout(this._updateTimer);
+      this._updateTimer = null;
+    }
+
+    if (this._progressMsgId) {
+      try {
+        await this._bot._callApi('deleteMessage', {
+          chat_id: this._chatId,
+          message_id: this._progressMsgId
+        });
+      } catch (e) { /* ignore */ }
+    }
+
+    const errorButtons = this._threadId
+      ? [
+          [
+            { text: this._bot._t('fm_btn_retry'), callback_data: 'fm:retry' },
+            { text: this._bot._t('fm_btn_continue'), callback_data: 'fm:compose' },
+          ],
+          [
+            { text: this._bot._t('fm_btn_history'), callback_data: 'fm:history' },
+            { text: this._bot._t('fm_btn_help'), callback_data: 'fm:help' },
+          ],
+        ]
+      : [
+          [
+            { text: '🔄 Retry', callback_data: 'cm:compose' },
+            { text: '🏠 Menu', callback_data: 'm:menu' },
+          ],
+        ];
+    await this._tgSend(
+      `❌ <b>Error:</b> ${this._bot._escHtml(data.error || 'Unknown error')}`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({ inline_keyboard: errorButtons })
+      }
+    );
+  }
+
+  get readyState() { return 1; } // WebSocket.OPEN
 }
 
 module.exports = TelegramBot;
