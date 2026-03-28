@@ -74,3 +74,6 @@ tasks/
 
 # Generated HTML exports
 README_RU.html
+
+# Cross-agent delegation workspace
+.crosswork/
