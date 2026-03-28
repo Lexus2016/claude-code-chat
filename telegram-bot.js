@@ -37,6 +37,15 @@ const SECRET_PATTERNS = [
   /Bearer\s+[a-zA-Z0-9\-_.~+/]{20,}/g,
 ];
 
+// ─── FSM States ─────────────────────────────────────────────────────────────
+const FSM_STATES = {
+  IDLE: 'IDLE',
+  COMPOSING: 'COMPOSING',
+  AWAITING_TASK_TITLE: 'AWAITING_TASK_TITLE',
+  AWAITING_TASK_DESCRIPTION: 'AWAITING_TASK_DESCRIPTION',
+  AWAITING_ASK_RESPONSE: 'AWAITING_ASK_RESPONSE',
+};
+
 // ─── Bot Internationalization ───────────────────────────────────────────────
 const BOT_I18N = require('./telegram-bot-i18n');
 
@@ -557,10 +566,10 @@ class TelegramBot extends EventEmitter {
 
       // Intercept: if there's a pending ask_user question, any text resolves it
       const ctx = this._getContext(userId);
-      if (ctx.pendingAskRequestId) {
-        const requestId = ctx.pendingAskRequestId;
-        ctx.pendingAskRequestId = null;
-        ctx.pendingAskQuestions = null;
+      if (ctx.state === FSM_STATES.AWAITING_ASK_RESPONSE) {
+        const requestId = ctx.stateData?.askRequestId;
+        ctx.state = FSM_STATES.IDLE;
+        ctx.stateData = null;
         this.emit('ask_user_response', { requestId, answer: text });
         await this._sendMessage(chatId, this._t('ask_answered'));
         return;
@@ -670,6 +679,11 @@ class TelegramBot extends EventEmitter {
     const text = msg.text.trim();
     const [rawCmd, ...args] = text.split(/\s+/);
     const cmd = rawCmd.toLowerCase().replace(/@\w+$/, ''); // strip @botname
+
+    // FSM-03: Cancel any in-progress input state before executing command
+    const ctx = this._getContext(userId);
+    ctx.state = FSM_STATES.IDLE;
+    ctx.stateData = null;
 
     switch (cmd) {
       case '/help':    return this._cmdHelp(chatId, userId);
@@ -1117,20 +1131,20 @@ class TelegramBot extends EventEmitter {
     const ctx = this._getContext(userId);
 
     // ─── Task creation input handling ─────────────────────────────────────
-    if (ctx.pendingInput === 'task_title') {
+    if (ctx.state === FSM_STATES.AWAITING_TASK_TITLE) {
       const title = (msg.text || '').trim().substring(0, 200);
       if (!title) return;
 
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-      const workdir = ctx.pendingTaskData?.workdir || null;
+      const workdir = ctx.stateData?.workdir || null;
 
       this.db.prepare(
         "INSERT INTO tasks (id, title, description, notes, status, sort_order, workdir) VALUES (?, ?, '', '', 'backlog', 0, ?)"
       ).run(id, title, workdir);
 
       // Move to description input
-      ctx.pendingInput = 'task_description';
-      ctx.pendingTaskData = { ...ctx.pendingTaskData, taskId: id, title };
+      ctx.state = FSM_STATES.AWAITING_TASK_DESCRIPTION;
+      ctx.stateData = { ...ctx.stateData, taskId: id, title };
 
       await this._sendMessage(chatId,
         this._t('new_task_created', { title: this._escHtml(title) }) + '\n\n' + this._t('new_task_with_desc'),
@@ -1143,18 +1157,18 @@ class TelegramBot extends EventEmitter {
       return;
     }
 
-    if (ctx.pendingInput === 'task_description') {
+    if (ctx.state === FSM_STATES.AWAITING_TASK_DESCRIPTION) {
       const description = (msg.text || '').trim().substring(0, 2000);
-      const taskId = ctx.pendingTaskData?.taskId;
-      const title = ctx.pendingTaskData?.title || '';
+      const taskId = ctx.stateData?.taskId;
+      const title = ctx.stateData?.title || '';
 
       if (taskId && description) {
         this.db.prepare("UPDATE tasks SET description = ?, updated_at = datetime('now') WHERE id = ?")
           .run(description, taskId);
       }
 
-      ctx.pendingInput = null;
-      ctx.pendingTaskData = null;
+      ctx.state = FSM_STATES.IDLE;
+      ctx.stateData = null;
 
       // Show tasks list
       await this._sendMessage(chatId,
@@ -1170,8 +1184,9 @@ class TelegramBot extends EventEmitter {
     }
 
     // Reset compose mode after sending
-    if (ctx.composing) {
-      ctx.composing = false;
+    if (ctx.state === FSM_STATES.COMPOSING) {
+      ctx.state = FSM_STATES.IDLE;
+      ctx.stateData = null;
     }
 
     if (!ctx.sessionId) {
@@ -1250,7 +1265,7 @@ class TelegramBot extends EventEmitter {
 
   async _handleAskCallback(chatId, userId, msgId, data) {
     const ctx = this._getContext(userId);
-    const requestId = ctx.pendingAskRequestId;
+    const requestId = ctx.stateData?.askRequestId;
 
     if (!requestId) {
       await this._sendMessage(chatId, this._t('ask_no_pending'));
@@ -1261,8 +1276,8 @@ class TelegramBot extends EventEmitter {
 
     if (suffix === 'skip') {
       // User skipped the question
-      ctx.pendingAskRequestId = null;
-      ctx.pendingAskQuestions = null;
+      ctx.state = FSM_STATES.IDLE;
+      ctx.stateData = null;
       this.emit('ask_user_response', { requestId, answer: '[Skipped by user]' });
       // Edit the question message to show it was skipped
       try {
@@ -1282,14 +1297,14 @@ class TelegramBot extends EventEmitter {
       await this._sendMessage(chatId, this._t('ask_no_pending'));
       return;
     }
-    const questions = ctx.pendingAskQuestions || [];
+    const questions = ctx.stateData?.askQuestions || [];
     const q = questions[0];
     const options = q?.options || [];
     const selected = options[idx];
     const answer = typeof selected === 'string' ? selected : (selected?.value || selected?.label || `Option ${idx + 1}`);
 
-    ctx.pendingAskRequestId = null;
-    ctx.pendingAskQuestions = null;
+    ctx.state = FSM_STATES.IDLE;
+    ctx.stateData = null;
     this.emit('ask_user_response', { requestId, answer });
 
     // Edit the question message to show what was selected
@@ -1365,11 +1380,14 @@ class TelegramBot extends EventEmitter {
     const msgId = cbq.message?.message_id;
     const data = cbq.data || '';
 
-    // Always answer to remove spinner
-    this._answerCallback(cbq.id);
-
-    if (!chatId || !this._isAuthorized(userId)) return;
-    if (!this._checkRateLimit(userId)) return;
+    if (!chatId || !this._isAuthorized(userId)) {
+      this._answerCallback(cbq.id);
+      return;
+    }
+    if (!this._checkRateLimit(userId)) {
+      this._answerCallback(cbq.id);
+      return;
+    }
     this._stmts.updateLastActive.run(userId);
 
     // Update screen reference
@@ -1378,10 +1396,12 @@ class TelegramBot extends EventEmitter {
     ctx.screenChatId = chatId;
 
     try {
-      // Reset pending input on any navigation (except task-specific callbacks)
-      if (ctx.pendingInput && !data.startsWith('t:')) {
-        ctx.pendingInput = null;
-        ctx.pendingTaskData = null;
+      // Reset task input state on any non-task navigation
+      if ((ctx.state === FSM_STATES.AWAITING_TASK_TITLE ||
+           ctx.state === FSM_STATES.AWAITING_TASK_DESCRIPTION) &&
+          !data.startsWith('t:')) {
+        ctx.state = FSM_STATES.IDLE;
+        ctx.stateData = null;
       }
 
       // ask_user option selection
@@ -1428,6 +1448,8 @@ class TelegramBot extends EventEmitter {
     } catch (err) {
       this.log.error(`[telegram] Callback error: ${err.message}`);
       await this._editScreen(chatId, msgId, this._t('error_prefix', { msg: this._escHtml(err.message) }), [[{ text: this._t('btn_back_menu'), callback_data: 'm:menu' }]]);
+    } finally {
+      this._answerCallback(cbq.id);
     }
   }
 
@@ -1478,7 +1500,7 @@ class TelegramBot extends EventEmitter {
 
     if (ctx.sessionId) {
       // Has active session — go directly to compose
-      ctx.composing = true;
+      ctx.state = FSM_STATES.COMPOSING;
       let composeText = this._t('compose_mode');
       const sess = this.db.prepare('SELECT title, workdir FROM sessions WHERE id = ?').get(ctx.sessionId);
       if (sess) {
@@ -1949,7 +1971,7 @@ class TelegramBot extends EventEmitter {
       ctx.sessionId = composeSid;
       const sess = this.db.prepare('SELECT title FROM sessions WHERE id=?').get(composeSid);
       const title = sess?.title || this._t('chat_untitled');
-      ctx.composing = true;
+      ctx.state = FSM_STATES.COMPOSING;
       this._saveDeviceContext(userId);
       return this._showScreen(chatId, userId,
         `✉ ${this._t('compose_prompt')}\n\n💬 ${this._escHtml(title)}`,
@@ -1996,7 +2018,7 @@ class TelegramBot extends EventEmitter {
       await this._cmdFull(chatId, userId);
 
     } else if (action === 'compose') {
-      ctx.composing = true;
+      ctx.state = FSM_STATES.COMPOSING;
       // Show session context in compose mode
       let composeText = this._t('compose_mode');
       if (ctx.sessionId) {
@@ -2013,7 +2035,8 @@ class TelegramBot extends EventEmitter {
       );
 
     } else if (action === 'cancel') {
-      ctx.composing = false;
+      ctx.state = FSM_STATES.IDLE;
+      ctx.stateData = null;
       ctx.pendingAttachments = [];
       // Re-show dialog overview
       if (ctx.sessionId) {
@@ -2380,7 +2403,7 @@ class TelegramBot extends EventEmitter {
             if (err) this._sendMessage(chatId, this._t('error_prefix', { msg: this._escHtml(err.message || 'error') }));
           }
         });
-      } else if (ctx.composing && ctx.sessionId) {
+      } else if (ctx.state === FSM_STATES.COMPOSING && ctx.sessionId) {
         // In compose mode, attach to pending
         ctx.pendingAttachments = ctx.pendingAttachments || [];
         ctx.pendingAttachments.push(attachment);
@@ -3457,8 +3480,8 @@ class TelegramBot extends EventEmitter {
     ).run(id, 'Telegram Session', workdir);
 
     ctx.sessionId = id;
-    ctx.composing = true;
-    ctx.pendingInput = null;
+    ctx.state = FSM_STATES.COMPOSING;
+    ctx.stateData = null;
     ctx.dialogPage = 0;
     this._saveDeviceContext(userId);
 
@@ -3470,9 +3493,8 @@ class TelegramBot extends EventEmitter {
 
   async _handleNewTask(chatId, userId) {
     const ctx = this._getContext(userId);
-    ctx.pendingInput = 'task_title';
-    ctx.pendingTaskData = { workdir: ctx.projectWorkdir || null };
-    ctx.composing = false;
+    ctx.state = FSM_STATES.AWAITING_TASK_TITLE;
+    ctx.stateData = { workdir: ctx.projectWorkdir || null };
 
     await this._editScreen(chatId, ctx.screenMsgId,
       this._t('new_task_prompt'),
@@ -3482,8 +3504,8 @@ class TelegramBot extends EventEmitter {
 
   async _handleSkipTaskDesc(chatId, userId) {
     const ctx = this._getContext(userId);
-    ctx.pendingInput = null;
-    ctx.pendingTaskData = null;
+    ctx.state = FSM_STATES.IDLE;
+    ctx.stateData = null;
 
     // Go back to tasks list
     return this._screenTasks(chatId, userId, ctx.projectWorkdir ? 't:list' : 't:all');
@@ -3535,7 +3557,7 @@ class TelegramBot extends EventEmitter {
     ).run(id, args || 'Telegram Session', workdir);
 
     ctx.sessionId = id;
-    ctx.composing = true;
+    ctx.state = FSM_STATES.COMPOSING;
     ctx.dialogPage = 0;
     this._saveDeviceContext(userId);
 
@@ -3644,20 +3666,50 @@ class TelegramBot extends EventEmitter {
         chatPage: 0,            // pagination for chat list
         filePath: null,         // current dir in file browser
         filePathCache: new Map(), // int key → absolute path
-        composing: false,       // "write to chat" mode
-        pendingInput: null,     // pending input mode: 'task_title', 'task_description'
-        pendingTaskData: null,  // temp data for task creation flow
-        // Phase 2 fields
+        // FSM: single state field replaces composing + pendingInput + pendingAskRequestId
+        state: FSM_STATES.IDLE,
+        stateData: null,        // carries context: { taskId, title, workdir } or { askRequestId, askQuestions }
+        // Unchanged fields
         dialogPage: 0,           // dialog pagination offset
         pendingAttachments: [],   // files waiting for text message
         isStreaming: false,       // whether a response is currently streaming
         streamMsgId: null,        // message ID of streaming progress
         lastNotifiedAt: 0,        // rate limiting for notifications
-        pendingAskRequestId: null,  // ask_user requestId awaiting answer
-        pendingAskQuestions: null,   // ask_user questions array
       });
     }
-    return this._userContext.get(userId);
+    const ctx = this._userContext.get(userId);
+    // Auto-migration: if old fields present, convert to FSM
+    if ('pendingInput' in ctx || 'composing' in ctx || 'pendingAskRequestId' in ctx) {
+      this._migrateContextToFSM(ctx);
+    }
+    return ctx;
+  }
+
+  _migrateContextToFSM(ctx) {
+    if (ctx.pendingAskRequestId) {
+      ctx.state = FSM_STATES.AWAITING_ASK_RESPONSE;
+      ctx.stateData = {
+        askRequestId: ctx.pendingAskRequestId,
+        askQuestions: ctx.pendingAskQuestions || null,
+      };
+    } else if (ctx.pendingInput === 'task_title') {
+      ctx.state = FSM_STATES.AWAITING_TASK_TITLE;
+      ctx.stateData = ctx.pendingTaskData || null;
+    } else if (ctx.pendingInput === 'task_description') {
+      ctx.state = FSM_STATES.AWAITING_TASK_DESCRIPTION;
+      ctx.stateData = ctx.pendingTaskData || null;
+    } else if (ctx.composing) {
+      ctx.state = FSM_STATES.COMPOSING;
+      ctx.stateData = null;
+    } else {
+      ctx.state = FSM_STATES.IDLE;
+      ctx.stateData = null;
+    }
+    delete ctx.composing;
+    delete ctx.pendingInput;
+    delete ctx.pendingAskRequestId;
+    delete ctx.pendingAskQuestions;
+    delete ctx.pendingTaskData;
   }
 
   _timeAgo(isoDate) {
@@ -3907,3 +3959,4 @@ class TelegramBot extends EventEmitter {
 }
 
 module.exports = TelegramBot;
+module.exports.FSM_STATES = FSM_STATES;
