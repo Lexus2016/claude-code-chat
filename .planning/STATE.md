@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md (SCREENS registry + editMsgId refactor)
-last_updated: "2026-03-28T19:38:34Z"
+stopped_at: Completed 02-03-PLAN.md (context header + back buttons)
+last_updated: "2026-03-28T20:01:00.590Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 5
   percent: 57
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 ## Current Position
 
 Phase: 2
-Plan: 1 of 5 complete
-Status: Executing phase 02-ux-redesign
+Plan: 2 of 5 complete
+Status: Ready to execute
 Last activity: 2026-03-28
 
 Progress: [######░░░░] 57%
@@ -56,6 +56,7 @@ Progress: [######░░░░] 57%
 | Phase 01 P02 | 5min | 2 tasks | 2 files |
 | Phase 02-ux-redesign P02 | 3min | 2 tasks | 1 files |
 | Phase 02-ux-redesign P01 | 9min | 2 tasks | 1 files |
+| Phase 02-ux-redesign P03 | 6min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 02-ux-redesign P01]: SCREENS registry uses function parents for dynamic back resolution (CHATS/FILES/TASKS depend on ctx.projectWorkdir)
 - [Phase 02-ux-redesign P01]: editMsgId passed from cbq.message.message_id to screen handlers, replacing ctx.screenMsgId global slot
 - [Phase 02-ux-redesign P01]: Forum callbacks (fs:, fm:, fa:) excluded from opts propagation per Phase 3 boundary
+- [Phase 02-ux-redesign]: SCREEN_TO_CALLBACK reverse map used for back navigation instead of reverse CALLBACK_TO_SCREEN lookup
+- [Phase 02-ux-redesign]: Context header replaces per-screen inline project/chat display for consistency
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T19:38:34Z
-Stopped at: Completed 02-01-PLAN.md (SCREENS registry + editMsgId refactor)
+Last session: 2026-03-28T20:01:00.587Z
+Stopped at: Completed 02-03-PLAN.md (context header + back buttons)
 Resume file: None

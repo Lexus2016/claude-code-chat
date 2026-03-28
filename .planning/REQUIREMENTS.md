@@ -11,11 +11,11 @@
 ### Navigation (NAV)
 
 - [ ] **NAV-01**: User can send a message to Claude in ≤2 taps from any state (zero slash commands required)
-- [ ] **NAV-02**: Every inline keyboard screen has a functional Back button that takes the user one level up the navigation hierarchy
+- [x] **NAV-02**: Every inline keyboard screen has a functional Back button that takes the user one level up the navigation hierarchy
 - [x] **NAV-03**: All navigation actions edit the existing screen message in place (no new messages sent for navigation taps)
-- [ ] **NAV-04**: Every screen message shows a context header: current active project and chat names (or "none selected")
+- [x] **NAV-04**: Every screen message shows a context header: current active project and chat names (or "none selected")
 - [ ] **NAV-05**: Slash commands `/project <n>` and `/chat <n>` are removed from the command menu; inline button selection is the only navigation method
-- [ ] **NAV-06**: User can return to Main Menu from any screen with a single tap
+- [x] **NAV-06**: User can return to Main Menu from any screen with a single tap
 
 ### State Machine (FSM)
 
@@ -95,11 +95,11 @@
 | FSM-04 | Phase 1 | Complete |
 | FSM-05 | Phase 1 | Complete |
 | NAV-01 | Phase 2 | Pending |
-| NAV-02 | Phase 2 | Pending |
+| NAV-02 | Phase 2 | Complete |
 | NAV-03 | Phase 2 | Complete |
-| NAV-04 | Phase 2 | Pending |
+| NAV-04 | Phase 2 | Complete |
 | NAV-05 | Phase 2 | Pending |
-| NAV-06 | Phase 2 | Pending |
+| NAV-06 | Phase 2 | Complete |
 | KB-01 | Phase 2 | Pending |
 | KB-02 | Phase 2 | Pending |
 | KB-03 | Phase 2 | Pending |
