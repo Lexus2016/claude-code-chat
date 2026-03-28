@@ -59,7 +59,7 @@
 
 ### Streaming (STREAM)
 
-- [ ] **STREAM-01**: Claude response streaming uses `sendMessageDraft` (Bot API 9.5) instead of `editMessageText` polling loop — eliminates rate-limit freezes and message flickering
+- [x] **STREAM-01**: Claude response streaming uses `sendMessageDraft` (Bot API 9.5) instead of `editMessageText` polling loop — eliminates rate-limit freezes and message flickering
 
 ---
 
@@ -106,7 +106,7 @@
 | ARCH-02 | Phase 2 | Pending |
 | ARCH-03 | Phase 2 | Pending |
 | ARCH-04 | Phase 2 | Pending |
-| STREAM-01 | Phase 2 | Pending |
+| STREAM-01 | Phase 2 | Complete |
 | FORUM-01 | Phase 3 | Pending |
 | FORUM-02 | Phase 3 | Pending |
 | FORUM-03 | Phase 3 | Pending |

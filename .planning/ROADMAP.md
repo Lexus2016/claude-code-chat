@@ -38,10 +38,10 @@ Plans:
 **Goal**: Users can reach Claude in 2 taps from any state, navigate without dead ends, and see their active context at all times
 **Depends on**: Phase 1
 **Requirements**: NAV-01, NAV-02, NAV-03, NAV-04, NAV-05, NAV-06, KB-01, KB-02, KB-03, ARCH-02, ARCH-03, ARCH-04, STREAM-01
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 Plans:
 - [ ] 02-01-PLAN.md — SCREENS registry, callback router refactor, screenMsgId removal (editMsgId from callback anchor)
-- [ ] 02-02-PLAN.md — sendMessageDraft streaming migration in TelegramProxy (server.js)
+- [x] 02-02-PLAN.md — sendMessageDraft streaming migration in TelegramProxy (server.js)
 - [ ] 02-03-PLAN.md — Auto-generated Back buttons + context header on every screen
 - [ ] 02-04-PLAN.md — Dynamic persistent keyboard + setMyCommands with 4 commands
 - [ ] 02-05-PLAN.md — 2-tap flow validation, slash command pruning, human verification checkpoint
@@ -88,6 +88,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-28 |
-| 2. UX Redesign | 0/5 | Planning complete | - |
+| 2. UX Redesign | 1/5 | In Progress|  |
 | 3. Forum Mode UX + Extraction | 0/TBD | Not started | - |
 | 4. Server Encapsulation | 0/TBD | Not started | - |

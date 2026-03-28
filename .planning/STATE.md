@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 01-02-PLAN.md (FSM migration)
-last_updated: "2026-03-28T18:55:05.147Z"
+stopped_at: Completed 02-02-PLAN.md (sendMessageDraft streaming)
+last_updated: "2026-03-28T19:27:55.474Z"
 last_activity: 2026-03-28
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 7
+  completed_plans: 3
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01-01 P01 | 2min | 2 tasks | 2 files |
 | Phase 01 P02 | 5min | 2 tasks | 2 files |
+| Phase 02-ux-redesign P02 | 3min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - [Phase 01-01]: BOT_I18N has 217 keys per locale (not 273 as estimated) -- extraction is exact
 - [Phase 01]: server.js uses string literals for FSM states to avoid circular dependency with telegram-bot.js
 - [Phase 01]: COMPOSING auto-resets to IDLE on send (one-shot affordance)
+- [Phase 02-ux-redesign]: sendMessageDraft uses plain text only during streaming (no parse_mode) to avoid malformed HTML failures
+- [Phase 02-ux-redesign]: Draft streaming fallback is permanent per proxy instance — first failure flips flag, no retry
+- [Phase 02-ux-redesign]: Thinking message suppressed in draft mode — draft provides its own streaming indicator
 
 ### Pending Todos
 
@@ -81,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T18:50:39.352Z
-Stopped at: Completed 01-02-PLAN.md (FSM migration)
+Last session: 2026-03-28T19:27:55.471Z
+Stopped at: Completed 02-02-PLAN.md (sendMessageDraft streaming)
 Resume file: None
