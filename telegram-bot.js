@@ -190,6 +190,8 @@ class TelegramBot extends EventEmitter {
       listTasksOrdered:  this.db.prepare("SELECT id, title, status FROM tasks ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'todo' THEN 1 WHEN 'backlog' THEN 2 WHEN 'blocked' THEN 3 WHEN 'done' THEN 4 END, sort_order ASC LIMIT 30"),
       findTaskByIdLike:  this.db.prepare('SELECT * FROM tasks WHERE id LIKE ?'),
       updateTaskStatus:  this.db.prepare("UPDATE tasks SET status = ?, updated_at = datetime('now') WHERE id = ?"),
+      // Ask notification
+      getSessionInfo:    this.db.prepare('SELECT title, workdir FROM sessions WHERE id = ?'),
     };
   }
 
@@ -417,6 +419,30 @@ class TelegramBot extends EventEmitter {
     const parentCb = Object.entries(CALLBACK_TO_SCREEN)
       .find(([, v]) => v === parentKey)?.[0] || 'm:menu';
     return [{ text: this._t('btn_back'), callback_data: parentCb }];
+  }
+
+  /**
+   * Build a context header line showing active project/chat.
+   * Prepended to every screen's text body for consistent context visibility.
+   * @param {object} ctx - User context (projectWorkdir, sessionId)
+   * @returns {string} Formatted header with trailing double newline
+   */
+  _buildContextHeader(ctx) {
+    const parts = [];
+    if (ctx.projectWorkdir) {
+      const name = ctx.projectWorkdir.split('/').filter(Boolean).pop() || '...';
+      parts.push(this._t('header_project', { name: this._escHtml(name) }));
+    }
+    if (ctx.sessionId) {
+      try {
+        const sess = this.db.prepare('SELECT title FROM sessions WHERE id=?').get(ctx.sessionId);
+        if (sess?.title) {
+          parts.push(this._t('header_chat', { title: this._escHtml(sess.title.substring(0, 30)) }));
+        }
+      } catch { /* ignore DB errors in header */ }
+    }
+    if (parts.length === 0) return this._t('header_none') + '\n\n';
+    return parts.join(this._t('header_separator')) + '\n\n';
   }
 
   // ─── Pairing ───────────────────────────────────────────────────────────────
@@ -2775,7 +2801,7 @@ class TelegramBot extends EventEmitter {
     if (!devices.length) return;
 
     // Session info for context
-    const session = this.db.prepare('SELECT title, workdir FROM sessions WHERE id = ?').get(sessionId);
+    const session = this._stmts.getSessionInfo.get(sessionId);
     const sessionTitle = session?.title || 'Claude';
 
     // Build notification text
@@ -2803,13 +2829,9 @@ class TelegramBot extends EventEmitter {
     }
     rows.push([{ text: skipLabel, callback_data: 'ask:skip' }]);
 
+    // No rate limit — ask notifications are urgent, one-time events.
+    // Unlike task completions, missing an ask blocks Claude's progress.
     for (const device of devices) {
-      // Rate limit: reuse the same lastNotifiedAt guard as notifyTaskComplete
-      const ctx = this._getContext(device.telegram_user_id);
-      const now = Date.now();
-      if (now - (ctx.lastNotifiedAt || 0) < 5000) continue;
-      ctx.lastNotifiedAt = now;
-
       try {
         if (device.forum_chat_id) {
           // Forum Mode — send to Activity topic with project link

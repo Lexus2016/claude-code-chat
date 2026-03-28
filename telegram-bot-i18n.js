@@ -153,6 +153,9 @@ const BOT_I18N = {
     'ask_skip_btn': '⏭ Пропустити',
     'ask_choose_hint': 'Оберіть варіант або натисніть «Пропустити»:',
     'ask_text_hint': 'Введіть відповідь текстом або натисніть «Пропустити»:',
+    'ask_notify_title': 'Claude чекає на відповідь',
+    'ask_notify_session': '📋 Сесія: <i>{title}</i>',
+    'ask_notify_go_to_chat': '💬 Перейти в чат',
     'ask_timeout': '⏱ Час вичерпано — Claude продовжив самостійно.',
 
     // Errors
@@ -276,6 +279,12 @@ const BOT_I18N = {
     // Media attachment
     'attach_pending': '📎 <b>{name}</b> додано ({size}KB)\nНадішліть текстове повідомлення або додайте ще файлів.',
     'attach_pending_ask': '📎 <b>{name}</b> додано\nНадішліть текстове повідомлення з питанням щодо файлу.',
+
+    // Context header
+    'header_project': '📁 <b>{name}</b>',
+    'header_chat': '💬 <b>{title}</b>',
+    'header_none': '📭 Нічого не обрано',
+    'header_separator': ' / ',
   },
   en: {
     'rate_limit': '⚠️ Too many requests. Please wait a minute.',
@@ -415,6 +424,9 @@ const BOT_I18N = {
     'ask_skip_btn': '⏭ Skip',
     'ask_choose_hint': 'Choose an option or tap "Skip":',
     'ask_text_hint': 'Type your answer or tap "Skip":',
+    'ask_notify_title': 'Claude is waiting for your answer',
+    'ask_notify_session': '📋 Session: <i>{title}</i>',
+    'ask_notify_go_to_chat': '💬 Go to chat',
     'ask_timeout': '⏱ Timed out — Claude proceeded on its own.',
 
     'error_prefix': '❌ Error: {msg}',
@@ -530,6 +542,12 @@ const BOT_I18N = {
     // Media attachment
     'attach_pending': '📎 <b>{name}</b> attached ({size}KB)\nSend a text message to include it, or send more files.',
     'attach_pending_ask': '📎 <b>{name}</b> attached\nNow send a text message with your question about this file.',
+
+    // Context header
+    'header_project': '📁 <b>{name}</b>',
+    'header_chat': '💬 <b>{title}</b>',
+    'header_none': '📭 Nothing selected',
+    'header_separator': ' / ',
   },
   ru: {
     'rate_limit': '⚠️ Слишком много запросов. Подождите минуту.',
@@ -669,6 +687,9 @@ const BOT_I18N = {
     'ask_skip_btn': '⏭ Пропустить',
     'ask_choose_hint': 'Выберите вариант или нажмите «Пропустить»:',
     'ask_text_hint': 'Введите ответ текстом или нажмите «Пропустить»:',
+    'ask_notify_title': 'Claude ждёт ответа',
+    'ask_notify_session': '📋 Сессия: <i>{title}</i>',
+    'ask_notify_go_to_chat': '💬 Перейти в чат',
     'ask_timeout': '⏱ Время вышло — Claude продолжил самостоятельно.',
 
     'error_prefix': '❌ Ошибка: {msg}',
@@ -784,6 +805,12 @@ const BOT_I18N = {
     // Media attachment
     'attach_pending': '📎 <b>{name}</b> добавлено ({size}KB)\nОтправьте текстовое сообщение или добавьте ещё файлов.',
     'attach_pending_ask': '📎 <b>{name}</b> добавлено\nОтправьте текстовое сообщение с вопросом о файле.',
+
+    // Context header
+    'header_project': '📁 <b>{name}</b>',
+    'header_chat': '💬 <b>{title}</b>',
+    'header_none': '📭 Ничего не выбрано',
+    'header_separator': ' / ',
   },
 };
 
