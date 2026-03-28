@@ -2,7 +2,7 @@
 
 ## Overview
 
-The 4693-line telegram-bot.js is a working but painful daily driver. The redesign fixes this in four phases ordered by dependency: first establish a stable state machine foundation (Phase 1), then rebuild all user-facing navigation on that foundation (Phase 2), then extract forum code as a separate module once direct mode is stable (Phase 3), and finally clean up the server.js coupling (Phase 4). The result: a user reaches Claude in 2 taps from any state, navigation never dead-ends, and the codebase is split into maintainable modules.
+The 4693-line telegram-bot.js is a working but painful daily driver. The redesign fixes this in four phases ordered by dependency: first establish a stable state machine foundation (Phase 1), then rebuild all user-facing navigation on that foundation (Phase 2), then redesign Forum Mode UX and extract it to a dedicated module (Phase 3), and finally clean up the server.js coupling (Phase 4). The result: Direct Mode users reach Claude in 2 taps, Forum Mode users get native inline keyboards in every topic, and the codebase is split into maintainable modules.
 
 ## Phases
 
@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - Extract i18n to separate file and replace ad-hoc flag state with explicit FSM
 - [ ] **Phase 2: UX Redesign** - Rebuild navigation, screens, persistent keyboard, and streaming on the new FSM
-- [ ] **Phase 3: Forum Extraction** - Extract TelegramBotForum class to separate module
+- [ ] **Phase 3: Forum Mode UX + Extraction** - Full Forum Mode UX redesign (inline keyboards per topic, onboarding, actions) + extract TelegramBotForum to dedicated module
 - [ ] **Phase 4: Server Encapsulation** - Expose public factory method; remove server.js private method calls
 
 ## Phase Details
@@ -45,16 +45,22 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 3: Forum Extraction
-**Goal**: Forum Mode logic lives in a dedicated `TelegramBotForum` class with no shared state with Direct Mode
+### Phase 3: Forum Mode UX + Extraction
+**Goal**: Forum Mode becomes a first-class UX — every topic has native inline keyboards, guided onboarding, and action buttons — all within a clean `TelegramBotForum` module with isolated state
 **Depends on**: Phase 2
-**Requirements**: FORUM-01, FORUM-02, FORUM-03, FORUM-04
+**Requirements**: FORUM-01, FORUM-02, FORUM-03, FORUM-04, FORUM-05, FORUM-06, FORUM-07, FORUM-08, FORUM-09, FORUM-10, FORUM-11
 **Success Criteria** (what must be TRUE):
   1. `telegram-bot-forum.js` exists containing `TelegramBotForum` class; `telegram-bot.js` no longer contains inline forum logic (~860 lines removed)
   2. A message sent in a Forum Mode topic does not affect `ctx.state` for the same user's Direct Mode conversation (and vice versa)
   3. All existing Forum Mode supergroups receive messages in the correct topic after extraction — no messages land in General topic
   4. `threadId` is always passed as an explicit parameter to every forum API call; no class-level `this._currentThreadId` remains
+  5. Forum Mode setup completes via guided inline-button onboarding — user never needs to read a text wall of instructions
+  6. Every Claude response in a project topic has an inline keyboard (Continue, New session, Files, Diff, Last 5) — user never types a command to access these
+  7. Activity topic notifications have action buttons (Go to Project, View Response) — not just read-only text
+  8. Tasks topic shows each task as an inline row with status buttons — user taps to start/done/block, never types `/start #id`
+  9. `/help` in Forum topics shows only the commands relevant to that topic type
 **Plans**: TBD
+**UI hint**: yes
 
 ### Phase 4: Server Encapsulation
 **Goal**: `server.js` interacts with the bot only through a public API — no private method calls remain
@@ -74,5 +80,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/TBD | Not started | - |
 | 2. UX Redesign | 0/TBD | Not started | - |
-| 3. Forum Extraction | 0/TBD | Not started | - |
+| 3. Forum Mode UX + Extraction | 0/TBD | Not started | - |
 | 4. Server Encapsulation | 0/TBD | Not started | - |
