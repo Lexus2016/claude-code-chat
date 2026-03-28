@@ -5247,8 +5247,8 @@ app.post('/api/delegate', express.json(), (req, res) => {
     return res.status(500).json({ error: `Failed to open terminal: ${termResult.error}` });
   }
 
-  // 6. Track delegation
-  const watcher = delegationMode === 'sync' ? startDelegationWatcher(delegationId, delegationDir) : null;
+  // 6. Track delegation — always watch for dialog changes
+  const watcher = startDelegationWatcher(delegationId, delegationDir);
 
   activeDelegations.set(delegationId, {
     id: delegationId,

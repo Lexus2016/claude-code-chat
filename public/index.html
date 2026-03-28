@@ -2059,7 +2059,12 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .dlg-panel-info { flex: 1; overflow: hidden; }
 .dlg-panel-agent { font-weight: 700; color: var(--accent2); }
 .dlg-panel-task { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; font-size: 11px; }
+.dlg-panel-time-box { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
 .dlg-panel-time { color: var(--muted); font-size: 10px; font-family: var(--font-mono); }
+.dlg-panel-last-update { font-size: 9px; font-family: var(--font-mono); color: var(--muted); opacity: .7; }
+.dlg-panel-last-update.fresh { color: #34d399; opacity: 1; font-weight: 600; }
+.dlg-panel.has-update { animation: dlgPulse .6s ease; }
+@keyframes dlgPulse { 0%{background:linear-gradient(135deg,rgba(52,211,153,.18),rgba(99,179,237,.12))} 100%{background:linear-gradient(135deg,rgba(124,106,239,.08),rgba(99,179,237,.06))} }
 .dlg-panel-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .dlg-btn { padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--s2); color: var(--text); cursor: pointer; font-size: 11px; font-weight: 500; transition: all .12s; }
 .dlg-btn:hover { border-color: var(--accent2); color: var(--accent2); }
@@ -2528,7 +2533,10 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
       <span class="dlg-panel-agent" id="dlgPanelAgent"></span>
       <span class="dlg-panel-task" id="dlgPanelTask"></span>
     </div>
-    <span class="dlg-panel-time" id="dlgPanelTime"></span>
+    <div class="dlg-panel-time-box">
+      <span class="dlg-panel-time" id="dlgPanelTime"></span>
+      <span class="dlg-panel-last-update" id="dlgPanelLastUpdate"></span>
+    </div>
     <div class="dlg-panel-actions">
       <button class="dlg-btn" onclick="checkDelegationBtn()" data-i18n="dlg.check">Перевірити</button>
       <button class="dlg-btn" onclick="toggleDelegateDialog()" data-i18n="dlg.dialog">Діалог</button>
@@ -3566,6 +3574,7 @@ const TRANSLATIONS = {
     'dlg.toast.delegated':'Делеговано до {agent}','dlg.toast.fail':'Помилка делегування: {err}',
     'dlg.toast.send_fail':'Не вдалося надіслати','dlg.toast.send_err':'Помилка надсилання: {err}','dlg.toast.stopped':'Делегування зупинено',
     'dlg.toast.updated':'Діалог оновлено','dlg.toast.no_changes':'Без змін',
+    'dlg.last_update':'оновлено {time} тому','dlg.toast.agent_responded':'{agent} відповів',
   },
   en: {
     'sec.proactive':'Status',
@@ -3777,6 +3786,7 @@ const TRANSLATIONS = {
     'dlg.toast.delegated':'Delegated to {agent}','dlg.toast.fail':'Failed to delegate: {err}',
     'dlg.toast.send_fail':'Failed to send message','dlg.toast.send_err':'Failed to send: {err}','dlg.toast.stopped':'Delegation stopped',
     'dlg.toast.updated':'Dialog updated','dlg.toast.no_changes':'No changes',
+    'dlg.last_update':'updated {time} ago','dlg.toast.agent_responded':'{agent} responded',
   },
   ru: {
     'sec.proactive':'Статус',
@@ -3988,6 +3998,7 @@ const TRANSLATIONS = {
     'dlg.toast.delegated':'Делегировано: {agent}','dlg.toast.fail':'Ошибка делегирования: {err}',
     'dlg.toast.send_fail':'Не удалось отправить','dlg.toast.send_err':'Ошибка отправки: {err}','dlg.toast.stopped':'Делегирование остановлено',
     'dlg.toast.updated':'Диалог обновлён','dlg.toast.no_changes':'Без изменений',
+    'dlg.last_update':'обновлено {time} назад','dlg.toast.agent_responded':'{agent} ответил',
   }
 };
 function t(key) {
@@ -4873,10 +4884,16 @@ function handleWsMsg(d) {
 
     case 'delegate_update':
       if (d.delegationId && _activeDelegation?.id === d.delegationId) {
-        _activeDelegation.lastUpdate = d.lastUpdate;
+        const hadChanges = d.dialog !== _activeDelegation.dialog;
+        _activeDelegation.lastUpdate = Date.now();
         _activeDelegation.dialog = d.dialog || '';
         _renderDelegatePanel();
         _renderDelegateDialog();
+        if (hadChanges) {
+          const panel = $i('delegatePanel');
+          if (panel) { panel.classList.remove('has-update'); void panel.offsetWidth; panel.classList.add('has-update'); }
+          toast(t('dlg.toast.agent_responded').replace('{agent}', _activeDelegation.agentLabel || _activeDelegation.agentId), false, 3000);
+        }
       }
       break;
 
@@ -11326,13 +11343,23 @@ function _renderDelegatePanel() {
   }
 }
 
+function _fmtElapsed(ms) {
+  const s = Math.round(ms / 1000);
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+}
+
 function _updateDelegateTime() {
+  if (!_activeDelegation) return;
   const timeEl = $i('dlgPanelTime');
-  if (!timeEl || !_activeDelegation) return;
-  const elapsed = Math.round((Date.now() - _activeDelegation.startedAt) / 1000);
-  const mins = Math.floor(elapsed / 60);
-  const secs = elapsed % 60;
-  timeEl.textContent = `${mins}m ${secs}s`;
+  const lastEl = $i('dlgPanelLastUpdate');
+  if (timeEl) timeEl.textContent = _fmtElapsed(Date.now() - _activeDelegation.startedAt);
+  if (lastEl) {
+    const ago = _fmtElapsed(Date.now() - _activeDelegation.lastUpdate);
+    lastEl.textContent = t('dlg.last_update').replace('{time}', ago);
+    const isFresh = (Date.now() - _activeDelegation.lastUpdate) < 30000;
+    lastEl.classList.toggle('fresh', isFresh);
+  }
 }
 
 function _renderDelegateDialog() {
