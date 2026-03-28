@@ -1639,7 +1639,7 @@ class TelegramProxy {
       this._updateTimer = null;
     }
 
-    // Delete progress message if exists
+    // Delete progress message if exists (legacy mode sends a "Thinking..." message)
     if (this._progressMsgId) {
       try {
         await this._bot._callApi('deleteMessage', {
@@ -1649,6 +1649,8 @@ class TelegramProxy {
       } catch (e) { /* ignore */ }
       this._progressMsgId = null;
     }
+    // Note: if using draft streaming, the draft auto-disappears when sendMessage is called below.
+    // No explicit draft cleanup needed — sendMessageDraft drafts vanish on first sendMessage to the same chat.
 
     // Send final response — collapse large messages with preview + "Show full" button
     const rawLen = this._buffer.trim().length;
@@ -5075,16 +5077,18 @@ async function processTelegramChat({ sessionId, text, userId, chatId, threadId, 
     // Save last user msg for reconnect recovery
     stmts.setLastUserMsg.run(text, sessionId);
 
-    // Send "thinking" indicator and pass message ID to proxy for reuse
-    const thinkingMsg = await telegramBot._sendMessage(chatId, '🤔 <b>Thinking...</b>', {
-      parse_mode: 'HTML',
-      reply_markup: JSON.stringify({ inline_keyboard: [[
-        { text: '🛑 Stop', callback_data: 'cm:stop' },
-        { text: '🏠 Menu', callback_data: 'm:menu' },
-      ]] }),
-    });
-    if (thinkingMsg?.message_id) {
-      proxy._progressMsgId = thinkingMsg.message_id;
+    // Send "thinking" indicator only in legacy mode (draft streaming provides its own visual)
+    if (!proxy._usesDraftStreaming) {
+      const thinkingMsg = await telegramBot._sendMessage(chatId, '🤔 <b>Thinking...</b>', {
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({ inline_keyboard: [[
+          { text: '🛑 Stop', callback_data: 'cm:stop' },
+          { text: '🏠 Menu', callback_data: 'm:menu' },
+        ]] }),
+      });
+      if (thinkingMsg?.message_id) {
+        proxy._progressMsgId = thinkingMsg.message_id;
+      }
     }
 
     const params = {
