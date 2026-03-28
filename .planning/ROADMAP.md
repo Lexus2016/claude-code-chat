@@ -38,7 +38,7 @@ Plans:
 **Goal**: Users can reach Claude in 2 taps from any state, navigate without dead ends, and see their active context at all times
 **Depends on**: Phase 1
 **Requirements**: NAV-01, NAV-02, NAV-03, NAV-04, NAV-05, NAV-06, KB-01, KB-02, KB-03, ARCH-02, ARCH-03, ARCH-04, STREAM-01
-**Plans:** 3/5 plans executed
+**Plans:** 5 plans
 Plans:
 - [x] 02-01-PLAN.md — SCREENS registry, callback router refactor, screenMsgId removal (editMsgId from callback anchor)
 - [x] 02-02-PLAN.md — sendMessageDraft streaming migration in TelegramProxy (server.js)
@@ -58,6 +58,11 @@ Plans:
 **Goal**: Forum Mode becomes a first-class UX — every topic has native inline keyboards, guided onboarding, and action buttons — all within a clean `TelegramBotForum` module with isolated state
 **Depends on**: Phase 2
 **Requirements**: FORUM-01, FORUM-02, FORUM-03, FORUM-04, FORUM-05, FORUM-06, FORUM-07, FORUM-08, FORUM-09, FORUM-10, FORUM-11
+**Plans:** 3 plans
+Plans:
+- [ ] 03-01-PLAN.md — Extract 21 forum methods to TelegramBotForum class (composition facade, state scoping, threadId explicit)
+- [ ] 03-02-PLAN.md — Forum UX enhancements (inline keyboards, activity buttons, error recovery, /help scoping, session display, i18n)
+- [ ] 03-03-PLAN.md — Guided onboarding flow + task inline buttons (ft: callback prefix)
 **Success Criteria** (what must be TRUE):
   1. `telegram-bot-forum.js` exists containing `TelegramBotForum` class; `telegram-bot.js` no longer contains inline forum logic (~860 lines removed)
   2. A message sent in a Forum Mode topic does not affect `ctx.state` for the same user's Direct Mode conversation (and vice versa)
@@ -68,7 +73,6 @@ Plans:
   7. Activity topic notifications have action buttons (Go to Project, View Response) — not just read-only text
   8. Tasks topic shows each task as an inline row with status buttons — user taps to start/done/block, never types `/start #id`
   9. `/help` in Forum topics shows only the commands relevant to that topic type
-**Plans**: TBD
 **UI hint**: yes
 
 ### Phase 4: Server Encapsulation
@@ -88,6 +92,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-28 |
-| 2. UX Redesign | 3/5 | In Progress|  |
-| 3. Forum Mode UX + Extraction | 0/TBD | Not started | - |
+| 2. UX Redesign | 5/5 | Complete | 2026-03-28 |
+| 3. Forum Mode UX + Extraction | 0/3 | In Progress | - |
 | 4. Server Encapsulation | 0/TBD | Not started | - |
