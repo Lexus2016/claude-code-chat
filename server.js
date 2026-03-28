@@ -1500,6 +1500,18 @@ class TelegramProxy {
       // Fallback without HTML
       await this._tgSend( text.replace(/<[^>]+>/g, ''), { reply_markup: replyMarkup }).catch(() => {});
     }
+
+    // Notify other devices/contexts about the pending question
+    this._bot.notifyAskUser({
+      userId: this._userId,
+      sessionId: this._sessionId,
+      sourceChatId: this._chatId,
+      sourceThreadId: this._threadId,
+      questionText,
+      questions,
+    }).catch(err => {
+      this._bot.log.warn(`[telegram] Ask notification dispatch failed: ${err.message}`);
+    });
   }
 
   // Dismiss ask_user UI (timeout or answered elsewhere)
@@ -2012,9 +2024,10 @@ const DEFAULT_SLASH_COMMANDS = [
 function loadConfig() {
   let c;
   try { c = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')); } catch { c = {}; }
-  if (!c.mcpServers)    c.mcpServers    = {};
-  if (!c.skills)        c.skills        = {};
-  if (!c.slashCommands) c.slashCommands = [];
+  if (!c.mcpServers)      c.mcpServers      = {};
+  if (!c.skills)          c.skills          = {};
+  if (!c.slashCommands)   c.slashCommands   = [];
+  if (!c.externalAgents)  c.externalAgents  = {};
   // Merge-in any default commands the user doesn't have yet (match by name).
   // This handles fresh installs AND version upgrades that add new defaults.
   const existingNames = new Set(c.slashCommands.map(cmd => cmd.name));
@@ -5458,6 +5471,318 @@ app.post('/api/tunnel/stop', (_, res) => {
 });
 
 // ============================================
+// CROSS-AGENT DELEGATION
+// ============================================
+
+const activeDelegations = new Map(); // delegationId -> { id, agentId, mode, workdir, pid, startedAt, watcher }
+const CROSSWORK_DIR = '.crosswork';
+
+function getCrossworkPath(workdir) {
+  return path.join(workdir, CROSSWORK_DIR);
+}
+
+function ensureCrossworkDir(workdir) {
+  const dir = getCrossworkPath(workdir);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  // Auto-add to .gitignore if not already there
+  const gitignorePath = path.join(workdir, '.gitignore');
+  try {
+    const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf-8') : '';
+    if (!existing.includes(CROSSWORK_DIR)) {
+      fs.appendFileSync(gitignorePath, `\n# Cross-agent delegation workspace\n${CROSSWORK_DIR}/\n`);
+    }
+  } catch { /* non-critical */ }
+  return dir;
+}
+
+function buildContextMd(session, messages, task) {
+  const now = new Date().toISOString();
+  const textMsgs = messages.filter(m => m.type !== 'tool' && m.content);
+  // Take last 40 messages max, trim each to 1000 chars
+  const recent = textMsgs.slice(-40);
+  let conversation = '';
+  for (const m of recent) {
+    const role = m.role === 'user' ? 'User' : 'Assistant';
+    const content = m.content.length > 1000 ? m.content.slice(0, 1000) + '...' : m.content;
+    conversation += `### ${role}\n${content}\n\n`;
+  }
+
+  return `# Cross-Agent Context Handoff
+- Generated: ${now}
+- Source: Claude Code Studio, session "${session.title || 'Untitled'}"
+- Project: ${session.workdir || 'unknown'}
+
+## Task
+${task}
+
+## Recent Conversation
+${conversation}
+## Protocol
+You are continuing work delegated from another AI agent (Claude Code Studio).
+
+1. Read this file first for full context of prior work
+2. Before EVERY write to .crosswork/DIALOG.md — re-read it first (another agent may have added messages)
+3. Write to DIALOG.md using this format:
+   ## [YYYY-MM-DD HH:MM:SS] {your-agent-name}
+   Your message here.
+4. After each completed work step — append your update to .crosswork/DIALOG.md
+5. Never overwrite or delete content in DIALOG.md — only APPEND
+6. The other agent may send follow-up instructions at any time via DIALOG.md
+7. If you finish all work, write a final summary in DIALOG.md
+`;
+}
+
+function appendDialog(workdir, agentName, message) {
+  const dialogPath = path.join(getCrossworkPath(workdir), 'DIALOG.md');
+  const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const entry = `\n## [${timestamp}] ${agentName}\n${message}\n`;
+  if (!fs.existsSync(dialogPath)) {
+    fs.writeFileSync(dialogPath, `# Agent Dialog\n${entry}`);
+  } else {
+    fs.appendFileSync(dialogPath, entry);
+  }
+}
+
+function readDialog(workdir) {
+  const dialogPath = path.join(getCrossworkPath(workdir), 'DIALOG.md');
+  try { return fs.readFileSync(dialogPath, 'utf-8'); } catch { return ''; }
+}
+
+function shellEscape(s) {
+  // Single-quote wrapping: replace ' with '\'' (end quote, escaped quote, start quote)
+  return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+
+function buildTerminalCommand(agentConfig, workdir, prompt) {
+  const template = agentConfig.template || '';
+  const cmd = template.replace('{prompt}', shellEscape(prompt));
+  // Gemini has no --cwd, so always cd first
+  return `cd ${shellEscape(workdir)} && ${cmd}`;
+}
+
+function openTerminal(shellCommand) {
+  const platform = os.platform();
+  if (platform === 'darwin') {
+    // macOS — open Terminal.app via osascript
+    // Write command to a temp script file to avoid shell/AppleScript escaping issues
+    const tmpScript = path.join(os.tmpdir(), `ccs-delegate-${Date.now()}.sh`);
+    fs.writeFileSync(tmpScript, `#!/bin/bash\n${shellCommand}\n`, { mode: 0o755 });
+    const script = `tell application "Terminal"\n  activate\n  do script "${tmpScript}"\nend tell`;
+    try {
+      spawnProc('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref();
+      // Clean up temp script after a delay (terminal has started by then)
+      setTimeout(() => { try { fs.unlinkSync(tmpScript); } catch {} }, 10000);
+      return { ok: true };
+    } catch (err) {
+      try { fs.unlinkSync(tmpScript); } catch {}
+      return { ok: false, error: err.message };
+    }
+  } else {
+    // Linux fallback — try common terminal emulators
+    const terminals = ['gnome-terminal', 'xterm', 'konsole'];
+    for (const term of terminals) {
+      try {
+        spawnProc(term, ['--', 'bash', '-c', shellCommand], { detached: true, stdio: 'ignore' }).unref();
+        return { ok: true };
+      } catch { continue; }
+    }
+    return { ok: false, error: 'No supported terminal emulator found' };
+  }
+}
+
+function startDelegationWatcher(delegationId, workdir) {
+  const dir = getCrossworkPath(workdir);
+  let debounceTimer = null;
+  try {
+    const watcher = fs.watch(dir, { persistent: false }, (eventType, filename) => {
+      if (filename === 'DIALOG.md') {
+        // Debounce: fs.watch on macOS fires multiple events per single write
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          debounceTimer = null;
+          const delegation = activeDelegations.get(delegationId);
+          if (!delegation) return;
+          delegation.lastUpdate = Date.now();
+          const dialog = readDialog(workdir);
+          for (const client of wss.clients) {
+            if (client.readyState === 1) {
+              client.send(JSON.stringify({
+                type: 'delegate_update',
+                delegationId,
+                dialog,
+                lastUpdate: delegation.lastUpdate,
+              }));
+            }
+          }
+        }, 300);
+      }
+    });
+    return watcher;
+  } catch {
+    return null;
+  }
+}
+
+// --- External agents config API ---
+
+app.get('/api/external-agents', (_, res) => {
+  const config = loadConfig();
+  res.json(config.externalAgents || {});
+});
+
+app.post('/api/external-agents', express.json(), (req, res) => {
+  const { id, label, template } = req.body;
+  if (!id || !label || !template) return res.status(400).json({ error: 'id, label, template required' });
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) return res.status(400).json({ error: 'id must be alphanumeric (a-z, 0-9, -, _)' });
+  const config = loadConfig();
+  config.externalAgents[id] = { label, template };
+  saveConfig(config);
+  res.json({ ok: true });
+});
+
+app.delete('/api/external-agents/:id', (req, res) => {
+  const config = loadConfig();
+  delete config.externalAgents[req.params.id];
+  saveConfig(config);
+  res.json({ ok: true });
+});
+
+// --- Delegation API ---
+
+app.post('/api/delegate', express.json(), (req, res) => {
+  const { agentId, mode, task, sessionId } = req.body;
+  if (!agentId || !task) return res.status(400).json({ error: 'agentId and task required' });
+  if (!/^[a-zA-Z0-9_-]+$/.test(agentId)) return res.status(400).json({ error: 'Invalid agentId' });
+
+  const config = loadConfig();
+  const agentConfig = config.externalAgents[agentId];
+  if (!agentConfig) return res.status(404).json({ error: `Agent "${agentId}" not configured` });
+
+  const session = sessionId ? stmts.getSession.get(sessionId) : null;
+  const workdir = session?.workdir || WORKDIR;
+
+  // Check for existing delegation on this workdir
+  for (const [did, d] of activeDelegations) {
+    if (d.workdir === workdir) {
+      return res.status(409).json({ error: 'Active delegation already exists for this workdir', delegationId: did });
+    }
+  }
+
+  // 1. Prepare .crosswork/ directory
+  ensureCrossworkDir(workdir);
+
+  // 2. Build context from session messages
+  const messages = sessionId ? stmts.getMsgs.all(sessionId) : [];
+  const contextMd = buildContextMd(session || { title: 'New delegation', workdir }, messages, task);
+  fs.writeFileSync(path.join(getCrossworkPath(workdir), 'CONTEXT.md'), contextMd);
+
+  // 3. Initialize DIALOG.md with delegation message
+  appendDialog(workdir, 'claude-code-studio', `Delegated task to ${agentConfig.label}.\nTask: ${task}\nMode: ${mode || 'handoff'}\nFull context in CONTEXT.md.`);
+
+  // 4. Build prompt for the external agent
+  const agentPrompt = `Read .crosswork/CONTEXT.md for full context of the delegated task, then start working. Follow the protocol described in that file for communicating through .crosswork/DIALOG.md.`;
+
+  // 5. Open terminal with the agent
+  const shellCommand = buildTerminalCommand(agentConfig, workdir, agentPrompt);
+  const termResult = openTerminal(shellCommand);
+
+  if (!termResult.ok) {
+    return res.status(500).json({ error: `Failed to open terminal: ${termResult.error}` });
+  }
+
+  // 6. Track delegation
+  const delegationId = genId();
+  const delegationMode = mode || 'handoff';
+
+  const watcher = delegationMode === 'sync' ? startDelegationWatcher(delegationId, workdir) : null;
+
+  activeDelegations.set(delegationId, {
+    id: delegationId,
+    agentId,
+    agentLabel: agentConfig.label,
+    mode: delegationMode,
+    workdir,
+    sessionId: sessionId || null,
+    task,
+    startedAt: Date.now(),
+    lastUpdate: Date.now(),
+    watcher,
+  });
+
+  log.info('Delegation created', { delegationId, agentId, mode: delegationMode, workdir });
+
+  res.json({
+    ok: true,
+    delegationId,
+    mode: delegationMode,
+    agent: agentConfig.label,
+    crossworkPath: getCrossworkPath(workdir),
+  });
+});
+
+app.get('/api/delegate/status', (_, res) => {
+  const delegations = [];
+  for (const [, d] of activeDelegations) {
+    delegations.push({
+      id: d.id,
+      agentId: d.agentId,
+      agentLabel: d.agentLabel,
+      mode: d.mode,
+      workdir: d.workdir,
+      sessionId: d.sessionId,
+      task: d.task,
+      startedAt: d.startedAt,
+      lastUpdate: d.lastUpdate,
+    });
+  }
+  res.json({ delegations });
+});
+
+app.get('/api/delegate/:id/dialog', (req, res) => {
+  const delegation = activeDelegations.get(req.params.id);
+  if (!delegation) return res.status(404).json({ error: 'Delegation not found' });
+  const dialog = readDialog(delegation.workdir);
+  res.json({ dialog, lastUpdate: delegation.lastUpdate });
+});
+
+app.post('/api/delegate/:id/message', express.json(), (req, res) => {
+  const delegation = activeDelegations.get(req.params.id);
+  if (!delegation) return res.status(404).json({ error: 'Delegation not found' });
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: 'message required' });
+  appendDialog(delegation.workdir, 'claude-code-studio', message);
+  delegation.lastUpdate = Date.now();
+  res.json({ ok: true });
+});
+
+app.post('/api/delegate/:id/check', (req, res) => {
+  const delegation = activeDelegations.get(req.params.id);
+  if (!delegation) return res.status(404).json({ error: 'Delegation not found' });
+  const dialog = readDialog(delegation.workdir);
+  // Broadcast update to WS clients
+  for (const client of wss.clients) {
+    if (client.readyState === 1) {
+      client.send(JSON.stringify({
+        type: 'delegate_update',
+        delegationId: delegation.id,
+        dialog,
+        lastUpdate: delegation.lastUpdate,
+      }));
+    }
+  }
+  res.json({ dialog, lastUpdate: delegation.lastUpdate });
+});
+
+app.delete('/api/delegate/:id', (req, res) => {
+  const delegation = activeDelegations.get(req.params.id);
+  if (!delegation) return res.status(404).json({ error: 'Delegation not found' });
+  if (delegation.watcher) { try { delegation.watcher.close(); } catch {} }
+  activeDelegations.delete(req.params.id);
+  log.info('Delegation stopped', { delegationId: req.params.id });
+  res.json({ ok: true });
+});
+
+// ============================================
 // WEBSOCKET
 // ============================================
 server.on('upgrade', (req, socket, head) => {
@@ -6477,6 +6802,12 @@ function gracefulShutdown(signal) {
 
   // 0b. Stop Telegram bot
   if (telegramBot) { telegramBot.stop(); telegramBot = null; }
+
+  // 0c. Close delegation watchers
+  for (const [, d] of activeDelegations) {
+    if (d.watcher) { try { d.watcher.close(); } catch {} }
+  }
+  activeDelegations.clear();
 
   // 1. Abort all running Claude subprocesses
   wss.clients.forEach(ws => {

@@ -2053,6 +2053,27 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
     transition: none !important;
   }
 }
+
+/* ─── Cross-Agent Delegation ─── */
+.dlg-panel { display: none; padding: 8px 14px; background: linear-gradient(135deg, rgba(124,106,239,.08), rgba(99,179,237,.06)); border-bottom: 1px solid var(--border); gap: 10px; align-items: center; font-size: 12px; }
+.dlg-panel.active { display: flex; }
+.dlg-panel-icon { font-size: 16px; flex-shrink: 0; }
+.dlg-panel-info { flex: 1; overflow: hidden; }
+.dlg-panel-agent { font-weight: 700; color: var(--accent2); }
+.dlg-panel-task { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; font-size: 11px; }
+.dlg-panel-time { color: var(--muted); font-size: 10px; font-family: var(--font-mono); }
+.dlg-panel-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.dlg-btn { padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--s2); color: var(--text); cursor: pointer; font-size: 11px; font-weight: 500; transition: all .12s; }
+.dlg-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.dlg-btn.danger { color: var(--error, #f87171); }
+.dlg-btn.danger:hover { border-color: var(--error, #f87171); background: rgba(248,113,113,.1); }
+.dlg-dialog-view { max-height: 280px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; font-family: var(--font-mono); color: var(--text); }
+.dlg-dialog-view h2 { font-size: 11px; color: var(--accent2); margin: 10px 0 4px; font-weight: 700; }
+.dlg-dialog-view h2:first-child { margin-top: 0; }
+.dlg-msg-input { display: flex; gap: 6px; margin-top: 8px; }
+.dlg-msg-input input { flex: 1; padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; }
+.dlg-msg-input input:focus { border-color: var(--accent); }
+.dlg-msg-input button { padding: 6px 14px; border-radius: 6px; border: none; background: var(--accent); color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -2489,6 +2510,29 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
     <span id="sessBarClaudeId" style="display:none;font-family:monospace;font-size:10px;color:var(--muted);background:var(--s3,#1f2637);padding:1px 6px;border-radius:4px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;" title="" onclick="copySessId()"></span>
     <a id="sessBarOpenBtn" style="display:none;font-size:11px;color:var(--accent2);text-decoration:none;padding:1px 7px;border-radius:4px;border:1px solid rgba(124,106,239,.25);flex-shrink:0;cursor:pointer;" onclick="openInClaude()">⚡ Claude Code</a>
     <button id="sessBarCompactBtn" class="sess-compact-btn" style="display:none;" onclick="compactSession()" data-i18n-title="compact.title" title="Compact chat and start new session">📋 <span data-i18n="compact.btn">Compact & New</span></button>
+    <button id="sessBarDelegateBtn" class="sess-compact-btn" style="display:none;" onclick="openDelegateModal()" title="Delegate to external agent">⇗ Delegate</button>
+  </div>
+
+  <div class="dlg-panel" id="delegatePanel">
+    <span class="dlg-panel-icon">⇗</span>
+    <div class="dlg-panel-info">
+      <span class="dlg-panel-agent" id="dlgPanelAgent"></span>
+      <span class="dlg-panel-task" id="dlgPanelTask"></span>
+    </div>
+    <span class="dlg-panel-time" id="dlgPanelTime"></span>
+    <div class="dlg-panel-actions">
+      <button class="dlg-btn" onclick="checkDelegation()">Check</button>
+      <button class="dlg-btn" onclick="toggleDelegateDialog()">Dialog</button>
+      <button class="dlg-btn" onclick="sendDelegateMsg()">Message</button>
+      <button class="dlg-btn danger" onclick="stopDelegation()">Stop</button>
+    </div>
+  </div>
+  <div id="dlgDialogContainer" style="display:none;padding:0 14px 8px;background:var(--s1);border-bottom:1px solid var(--border);">
+    <div class="dlg-dialog-view" id="dlgDialogView"></div>
+    <div class="dlg-msg-input" id="dlgMsgInput">
+      <input id="dlgMsgText" placeholder="Send message to agent..." onkeydown="if(event.key==='Enter')sendDelegateMsgSubmit()">
+      <button onclick="sendDelegateMsgSubmit()">Send</button>
+    </div>
   </div>
 
   <div class="msgs" id="messages" role="log" aria-live="polite" aria-label="Chat messages">
@@ -3006,6 +3050,43 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
     </div>
     <div class="confirm-actions" style="margin-top:18px">
       <button class="cd-btn-ok" onclick="closeRlModal()" data-i18n="rl.modal.ok">Зрозуміло</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delegate Modal -->
+<div class="modal-overlay hidden" id="delegateModal" aria-hidden="true" onclick="if(event.target===this)closeDelegateModal()">
+  <div class="modal cmd-modal" role="dialog" aria-modal="true" aria-labelledby="dlgModalTitle">
+    <div class="modal-hdr">
+      <h2 id="dlgModalTitle">⇗ Delegate to External Agent</h2>
+      <button class="modal-close" onclick="closeDelegateModal()">&times;</button>
+    </div>
+    <div class="modal-body" style="gap:14px;display:flex;flex-direction:column;">
+      <div class="cmd-field">
+        <label>Agent</label>
+        <select id="dlgAgent" style="padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+          <option value="">-- Select agent --</option>
+        </select>
+      </div>
+      <div class="cmd-field">
+        <label>Mode</label>
+        <div style="display:flex;gap:8px;">
+          <label style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer;">
+            <input type="radio" name="dlgMode" value="handoff" checked> Handoff <span style="color:var(--muted);font-size:11px;">(full transfer, work in terminal)</span>
+          </label>
+          <label style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer;">
+            <input type="radio" name="dlgMode" value="sync"> Sync <span style="color:var(--muted);font-size:11px;">(parallel work, dialog updates)</span>
+          </label>
+        </div>
+      </div>
+      <div class="cmd-field">
+        <label>Task</label>
+        <textarea id="dlgTask" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;resize:vertical;font-family:inherit;min-height:80px;" placeholder="Describe what the external agent should do..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeDelegateModal()" style="background:var(--s2);color:var(--muted);">Cancel</button>
+      <button onclick="submitDelegation()" style="background:var(--accent);color:#fff;">Delegate</button>
     </div>
   </div>
 </div>
@@ -4741,6 +4822,15 @@ function handleWsMsg(d) {
       }
       break;
 
+    case 'delegate_update':
+      if (d.delegationId && _activeDelegation?.id === d.delegationId) {
+        _activeDelegation.lastUpdate = d.lastUpdate;
+        _activeDelegation.dialog = d.dialog || '';
+        _renderDelegatePanel();
+        _renderDelegateDialog();
+      }
+      break;
+
     case 'error':
       getTS(tabId).agentStatus = ''; // task errored — clear saved status
       if (isVisible) {
@@ -6453,6 +6543,10 @@ async function updateSessBar(opts = {}) {
       const hasMessages = sess.messages && sess.messages.some(m => m.type === 'text' && m.role === 'user');
       const isGenerating = tab?.generating || sess.isChatRunning;
       compactBtn.style.display = (hasMessages && !isGenerating) ? '' : 'none';
+    }
+    const delegateBtn = $i('sessBarDelegateBtn');
+    if (delegateBtn) {
+      delegateBtn.style.display = currentSessionId ? '' : 'none';
     }
     if (retryIfMissing && !hasClaudeId && tab?.generating && currentSessionId === sessionId) {
       scheduleSessBarRefresh();
@@ -11079,6 +11173,248 @@ document.addEventListener('mouseout', () => {
   _tipEl.style.opacity = '0';
 });
 
+// ─── Cross-Agent Delegation ──────────────────────────────────────────────
+let _activeDelegation = null;
+let _delegateCheckTimer = null;
+let _delegateTimeTimer = null;
+let _externalAgents = {};
+
+async function _loadExternalAgents() {
+  try {
+    const r = await fetch('/api/external-agents');
+    if (!r.ok) { _externalAgents = {}; return; }
+    const data = await r.json();
+    _externalAgents = (data && typeof data === 'object' && !data.error) ? data : {};
+  } catch { _externalAgents = {}; }
+}
+
+function openDelegateModal() {
+  _loadExternalAgents().then(() => {
+    const sel = $i('dlgAgent');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Select agent --</option>';
+    for (const [id, cfg] of Object.entries(_externalAgents)) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = cfg.label || id;
+      sel.appendChild(opt);
+    }
+    if (Object.keys(_externalAgents).length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No agents configured (add via Settings)';
+      opt.disabled = true;
+      sel.appendChild(opt);
+    }
+    $i('dlgTask').value = '';
+    openModalOverlay('delegateModal');
+  });
+}
+
+function closeDelegateModal() {
+  closeModalOverlay('delegateModal');
+}
+
+async function submitDelegation() {
+  const agentId = $i('dlgAgent')?.value;
+  const task = $i('dlgTask')?.value?.trim();
+  const mode = document.querySelector('input[name="dlgMode"]:checked')?.value || 'handoff';
+
+  if (!agentId) { toast('Select an agent', true); return; }
+  if (!task) { toast('Describe the task', true); return; }
+
+  try {
+    const r = await fetch('/api/delegate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId, mode, task, sessionId: currentSessionId }),
+    });
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'Delegation failed', true); return; }
+
+    _activeDelegation = {
+      id: d.delegationId,
+      agentId,
+      agentLabel: d.agent,
+      mode,
+      task,
+      startedAt: Date.now(),
+      lastUpdate: Date.now(),
+      dialog: '',
+    };
+
+    closeDelegateModal();
+    _renderDelegatePanel();
+
+    if (mode === 'sync') {
+      _startDelegatePolling();
+    }
+
+    toast(`Delegated to ${d.agent}`, false, 3000);
+  } catch (err) {
+    toast('Failed to delegate: ' + err.message, true);
+  }
+}
+
+function _renderDelegatePanel() {
+  const panel = $i('delegatePanel');
+  if (!panel) return;
+  if (!_activeDelegation) {
+    panel.classList.remove('active');
+    if (_delegateTimeTimer) { clearInterval(_delegateTimeTimer); _delegateTimeTimer = null; }
+    return;
+  }
+  panel.classList.add('active');
+  const agentEl = $i('dlgPanelAgent');
+  const taskEl = $i('dlgPanelTask');
+  const timeEl = $i('dlgPanelTime');
+  if (agentEl) agentEl.textContent = _activeDelegation.agentLabel || _activeDelegation.agentId;
+  if (taskEl) taskEl.textContent = _activeDelegation.task;
+  _updateDelegateTime();
+  // Start real-time timer update
+  if (!_delegateTimeTimer) {
+    _delegateTimeTimer = setInterval(_updateDelegateTime, 5000);
+  }
+}
+
+function _updateDelegateTime() {
+  const timeEl = $i('dlgPanelTime');
+  if (!timeEl || !_activeDelegation) return;
+  const elapsed = Math.round((Date.now() - _activeDelegation.startedAt) / 1000);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  timeEl.textContent = `${mins}m ${secs}s`;
+}
+
+function _renderDelegateDialog() {
+  const view = $i('dlgDialogView');
+  if (!view || !_activeDelegation) return;
+  const container = $i('dlgDialogContainer');
+  if (!container || container.style.display === 'none') return;
+  // DOM-based rendering to avoid XSS — no innerHTML with user content
+  view.textContent = '';
+  const raw = _activeDelegation.dialog || '';
+  for (const line of raw.split('\n')) {
+    const h2m = line.match(/^## \[(.+?)\] (.+)$/);
+    const h1m = line.match(/^# (.+)$/);
+    if (h2m) {
+      const h = document.createElement('h2');
+      h.textContent = '[' + h2m[1] + '] ' + h2m[2];
+      view.appendChild(h);
+    } else if (h1m) {
+      const h = document.createElement('h1');
+      h.style.cssText = 'font-size:13px;color:var(--accent2);margin:0 0 8px;';
+      h.textContent = h1m[1];
+      view.appendChild(h);
+    } else {
+      view.appendChild(document.createTextNode(line + '\n'));
+    }
+  }
+  view.scrollTop = view.scrollHeight;
+}
+
+function toggleDelegateDialog() {
+  const container = $i('dlgDialogContainer');
+  if (!container) return;
+  const isHidden = container.style.display === 'none';
+  container.style.display = isHidden ? '' : 'none';
+  if (isHidden) {
+    checkDelegation();
+  }
+}
+
+function sendDelegateMsg() {
+  const container = $i('dlgDialogContainer');
+  if (!container) return;
+  container.style.display = '';
+  $i('dlgMsgText')?.focus();
+}
+
+async function sendDelegateMsgSubmit() {
+  if (!_activeDelegation) return;
+  const input = $i('dlgMsgText');
+  const message = input?.value?.trim();
+  if (!message) return;
+  try {
+    const r = await fetch(`/api/delegate/${_activeDelegation.id}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (!r.ok) { toast('Failed to send message', true); return; }
+    input.value = '';
+    // Optimistic update: append to local dialog immediately
+    const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    _activeDelegation.dialog += `\n## [${ts}] claude-code-studio\n${message}\n`;
+    _renderDelegateDialog();
+    // Then fetch the full dialog from server
+    checkDelegation();
+  } catch (err) {
+    toast('Failed to send: ' + err.message, true);
+  }
+}
+
+async function checkDelegation() {
+  if (!_activeDelegation) return;
+  try {
+    const r = await fetch(`/api/delegate/${_activeDelegation.id}/check`, { method: 'POST' });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.dialog !== undefined) {
+      _activeDelegation.dialog = d.dialog;
+      _activeDelegation.lastUpdate = d.lastUpdate;
+      _renderDelegateDialog();
+      _renderDelegatePanel();
+    }
+  } catch {}
+}
+
+async function stopDelegation() {
+  if (!_activeDelegation) return;
+  try {
+    await fetch(`/api/delegate/${_activeDelegation.id}`, { method: 'DELETE' });
+  } catch {}
+  if (_delegateCheckTimer) { clearInterval(_delegateCheckTimer); _delegateCheckTimer = null; }
+  _activeDelegation = null;
+  _renderDelegatePanel();
+  const container = $i('dlgDialogContainer');
+  if (container) container.style.display = 'none';
+  toast('Delegation stopped');
+}
+
+function _startDelegatePolling(intervalMs = 15000) {
+  if (_delegateCheckTimer) clearInterval(_delegateCheckTimer);
+  _delegateCheckTimer = setInterval(() => {
+    if (_activeDelegation) checkDelegation();
+    else { clearInterval(_delegateCheckTimer); _delegateCheckTimer = null; }
+  }, intervalMs);
+}
+
+// Restore delegation state on load
+async function _restoreDelegationState() {
+  try {
+    const r = await fetch('/api/delegate/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.delegations?.length > 0) {
+      const del = d.delegations[0];
+      _activeDelegation = {
+        id: del.id,
+        agentId: del.agentId,
+        agentLabel: del.agentLabel,
+        mode: del.mode,
+        task: del.task,
+        startedAt: del.startedAt,
+        lastUpdate: del.lastUpdate,
+        dialog: '',
+      };
+      _renderDelegatePanel();
+      if (del.mode === 'sync') _startDelegatePolling();
+      checkDelegation();
+    }
+  } catch {}
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────
 setLang(localStorage.getItem('lang') || 'en');
 // Sync lang from server on load
@@ -11090,6 +11426,7 @@ fetch('/api/lang').then(r => r.json()).then(d => {
 }).catch(() => {});
 restoreUIState();
 _rlRestore(); // Restore rate limit badge from localStorage if still active
+_restoreDelegationState(); // Restore active delegation panel if server has one
 {
   const btn = $i('autoSkillsBtn');
   if (btn) {
