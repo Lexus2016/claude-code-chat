@@ -71,6 +71,32 @@ MIRROR=my-registry.company.com docker compose up -d --build
 
 </details>
 
+<details>
+<summary><b>Troubleshooting: npm install from GitHub fails</b></summary>
+
+Some npm versions (especially 10.x) fail when installing git dependencies with this error:
+
+```
+npm error --prefer-online cannot be provided when using --prefer-offline
+```
+
+This is a known npm bug where conflicting flags are passed during git dependency preparation.
+
+**Workaround — install manually:**
+```bash
+git clone https://github.com/Lexus2016/claude-code-studio.git
+cd claude-code-studio
+npm install
+npm install -g .   # optional: register the `claude-code-studio` CLI command globally
+```
+
+**Or update npm:**
+```bash
+npm install -g npm@latest
+```
+
+</details>
+
 ---
 
 ![Chat Interface](public/screenshots/02-main-chat.png)
@@ -158,6 +184,21 @@ Pair in 30 seconds (6-digit code from Settings). Your phone becomes a full remot
 
 **Multi** — orchestrator decomposes into 2–5 subtasks with real-time streaming. Send plan to Kanban with 📋 button.
 **Dispatch** — subtasks go to Kanban as persistent cards with dependency graphs, auto-retry, and cascade cancellation.
+
+### ⇗ Cross-Agent Delegation
+
+Send tasks to external AI CLIs — OpenAI Codex, Gemini CLI, opencode, Aider — directly from the chat interface. Two modes:
+
+| | Handoff | Sync |
+|---|---|---|
+| Workflow | Fire-and-forget | Parallel collaboration |
+| Communication | One-way context transfer | Bi-directional via DIALOG.md |
+| Monitoring | Manual check | Auto-polling every 15s + fs.watch |
+| Best for | Independent tasks | Tasks requiring back-and-forth |
+
+How it works: click **Delegate** in the session bar, pick an agent and mode, describe the task. Studio generates a `CONTEXT.md` with conversation history and opens a terminal with the external agent. In Sync mode, both agents communicate through a shared `DIALOG.md` — responses appear directly in the main chat with real-time notifications.
+
+Configure agents in Settings → External Agents (`config.json`). Delegations survive server restarts via persistent state files.
 
 ### 🎛 Chat Modes
 
@@ -254,6 +295,7 @@ npx github:Lexus2016/claude-code-studio    # launch as usual
 | **Scheduler** | One-time + recurring (hourly/daily/weekly/monthly), 5 parallel workers, Run Now, SQLite-persisted |
 | **Task Manager** | Autonomous child tasks, chains, context passing, result reporting, cancellation (MCP) |
 | **Telegram** | Bot control, push notifications, ask_user forwarding, session bridge, Forum Mode, inline stop, deep-link navigation, rich action buttons (localized EN/UA/RU), Write button, file attachments |
+| **Delegation** | Cross-agent handoff/sync (Codex, Gemini, opencode), CONTEXT.md + DIALOG.md protocol, fs.watch + polling, persistent across restarts |
 | **Agents** | Single, Multi (2–5 in-chat), Dispatch (Kanban), auto-retry, cascade cancellation |
 | **Modes** | Auto, Plan (read-only + Execute Plan), Task, auto mode switching |
 | **Skills** | 28 built-in, auto-classification, plugin discovery, custom `.md` files |
