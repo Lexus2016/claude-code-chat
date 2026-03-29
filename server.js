@@ -5045,6 +5045,59 @@ function getDelegationDir(workdir, delegationId) {
   return path.join(workdir, CROSSWORK_DIR, delegationId);
 }
 
+function saveDelegationState(delegation) {
+  const statePath = path.join(delegation.delegationDir, 'state.json');
+  const state = {
+    id: delegation.id,
+    agentId: delegation.agentId,
+    agentLabel: delegation.agentLabel,
+    mode: delegation.mode,
+    workdir: delegation.workdir,
+    delegationDir: delegation.delegationDir,
+    sessionId: delegation.sessionId,
+    task: delegation.task,
+    startedAt: delegation.startedAt,
+  };
+  try { fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } catch {}
+}
+
+function restoreDelegations() {
+  // Scan all known workdirs for .crosswork/*/state.json
+  const workdirs = new Set();
+  try {
+    const rows = db.prepare('SELECT DISTINCT workdir FROM sessions WHERE workdir IS NOT NULL').all();
+    for (const r of rows) workdirs.add(r.workdir);
+  } catch {}
+  workdirs.add(path.resolve(WORKDIR));
+
+  for (const wd of workdirs) {
+    const crossworkDir = path.join(wd, CROSSWORK_DIR);
+    if (!fs.existsSync(crossworkDir)) continue;
+    try {
+      const entries = fs.readdirSync(crossworkDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const statePath = path.join(crossworkDir, entry.name, 'state.json');
+        if (!fs.existsSync(statePath)) continue;
+        try {
+          const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+          if (activeDelegations.has(state.id)) continue;
+          const watcher = state.mode === 'sync'
+            ? startDelegationWatcher(state.id, state.delegationDir)
+            : null;
+          activeDelegations.set(state.id, {
+            ...state,
+            lastUpdate: Date.now(),
+            lastDialog: '',
+            watcher,
+          });
+          log.info('Restored delegation', { delegationId: state.id, agentId: state.agentId });
+        } catch {}
+      }
+    } catch {}
+  }
+}
+
 function ensureDelegationDir(workdir, delegationId) {
   const dir = getDelegationDir(workdir, delegationId);
   fs.mkdirSync(dir, { recursive: true });
@@ -5276,6 +5329,7 @@ app.post('/api/delegate', express.json(), (req, res) => {
     watcher,
   });
 
+  saveDelegationState(activeDelegations.get(delegationId));
   log.info('Delegation created', { delegationId, agentId, mode: delegationMode, workdir });
 
   res.json({
@@ -5338,6 +5392,8 @@ app.delete('/api/delegate/:id', (req, res) => {
   const delegation = activeDelegations.get(req.params.id);
   if (!delegation) return res.status(404).json({ error: 'Delegation not found' });
   if (delegation.watcher) { try { delegation.watcher.close(); } catch {} }
+  // Remove state file so it won't be restored on next restart
+  try { fs.unlinkSync(path.join(delegation.delegationDir, 'state.json')); } catch {}
   activeDelegations.delete(req.params.id);
   log.info('Delegation stopped', { delegationId: req.params.id });
   res.json({ ok: true });
@@ -6334,6 +6390,9 @@ initTunnelManager();
 
 // Start Telegram bot if configured
 initTelegramBot();
+
+// Restore delegations from .crosswork/*/state.json (survives server restarts)
+restoreDelegations();
 
 server.listen(PORT, () => {
   log.info('server started', {

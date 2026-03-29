@@ -11552,9 +11552,10 @@ async function _restoreDelegationState() {
       };
       _dlgShownCount = 0;
       _renderDelegatePanel();
+      // Always fetch current dialog state (may have changed while page was closed)
+      checkDelegation();
       if (del.mode === 'sync') {
         _startDelegatePolling();
-        checkDelegation();
       }
     }
   } catch {}
