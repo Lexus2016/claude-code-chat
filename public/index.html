@@ -2999,7 +2999,11 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
     <div class="modal-footer" style="flex-shrink:0">
       <span style="font-size:11px;color:var(--muted)" id="thinkingCopyFeedback"></span>
       <button class="bg" onclick="closeThinkingModal()" data-i18n="cfg.close">Close</button>
-      <button class="bp" onclick="copyThinkingContent()" style="margin-left:auto">
+      <button class="bp" id="thinkingTranslateBtn" onclick="translateThinking()" style="margin-left:auto">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>
+        <span data-i18n="thinking.translate">Translate</span>
+      </button>
+      <button class="bp" onclick="copyThinkingContent()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         <span data-i18n="thinking.copy">Copy</span>
       </button>
@@ -3670,7 +3674,7 @@ const TRANSLATIONS = {
     'cli.import.msgs':'повід.','cli.import.already':'Вже імпортовано','cli.import.already_done':'✓ імпортовано',
     'cli.import.doing':'Імпортую…','cli.import.doing_n':'Імпортую {n} сесій…',
     'cli.import.result':'Імпортовано: {n}','cli.import.skipped':' пропущено: {n}','cli.import.errors':' помилок: {n}',
-    'thinking.title':'Ланцюжок думок','thinking.copy':'Копіювати','thinking.copied':'✓ Скопійовано','thinking.copy_err':'Не вдалося скопіювати',
+    'thinking.title':'Ланцюжок думок','thinking.copy':'Копіювати','thinking.copied':'✓ Скопійовано','thinking.copy_err':'Не вдалося скопіювати','thinking.translate':'Перекласти','thinking.show_original':'Показати оригінал','thinking.translating':'Перекладаю…','thinking.translate_err':'Помилка перекладу',
     'dlg.title':'Делегувати агенту','dlg.agent':'Агент','dlg.agent.select':'Оберіть агента...','dlg.mode':'Режим',
     'dlg.mode.handoff':'Передача','dlg.mode.handoff.desc':'Повна передача. Відкриє термінал, ви продовжите роботу там.',
     'dlg.mode.sync':'Синхронізація','dlg.mode.sync.desc':'Паралельна робота. Обидва агенти активні, спілкуються через файл діалогу.',
@@ -3893,7 +3897,7 @@ const TRANSLATIONS = {
     'cli.import.msgs':'msgs','cli.import.already':'Already imported','cli.import.already_done':'✓ imported',
     'cli.import.doing':'Importing…','cli.import.doing_n':'Importing {n} sessions…',
     'cli.import.result':'Imported: {n}','cli.import.skipped':' skipped: {n}','cli.import.errors':' errors: {n}',
-    'thinking.title':'Chain of thought','thinking.copy':'Copy','thinking.copied':'✓ Copied','thinking.copy_err':'Failed to copy',
+    'thinking.title':'Chain of thought','thinking.copy':'Copy','thinking.copied':'✓ Copied','thinking.copy_err':'Failed to copy','thinking.translate':'Translate','thinking.show_original':'Show original','thinking.translating':'Translating…','thinking.translate_err':'Translation failed',
     'dlg.title':'Delegate to Agent','dlg.agent':'Agent','dlg.agent.select':'Select agent...','dlg.mode':'Mode',
     'dlg.mode.handoff':'Handoff','dlg.mode.handoff.desc':'Full transfer. Opens terminal, you continue working there.',
     'dlg.mode.sync':'Sync','dlg.mode.sync.desc':'Parallel work. Both agents active, communicate via dialog file.',
@@ -4116,7 +4120,7 @@ const TRANSLATIONS = {
     'cli.import.msgs':'сообщ.','cli.import.already':'Уже импортировано','cli.import.already_done':'✓ импортировано',
     'cli.import.doing':'Импортирую…','cli.import.doing_n':'Импортирую {n} сессий…',
     'cli.import.result':'Импортировано: {n}','cli.import.skipped':' пропущено: {n}','cli.import.errors':' ошибок: {n}',
-    'thinking.title':'Цепочка рассуждений','thinking.copy':'Копировать','thinking.copied':'✓ Скопировано','thinking.copy_err':'Не удалось скопировать',
+    'thinking.title':'Цепочка рассуждений','thinking.copy':'Копировать','thinking.copied':'✓ Скопировано','thinking.copy_err':'Не удалось скопировать','thinking.translate':'Перевести','thinking.show_original':'Показать оригинал','thinking.translating':'Перевожу…','thinking.translate_err':'Ошибка перевода',
     'dlg.title':'Делегировать агенту','dlg.agent':'Агент','dlg.agent.select':'Выберите агента...','dlg.mode':'Режим',
     'dlg.mode.handoff':'Передача','dlg.mode.handoff.desc':'Полная передача. Откроет терминал, вы продолжите работу там.',
     'dlg.mode.sync':'Синхронизация','dlg.mode.sync.desc':'Параллельная работа. Оба агента активны, общаются через файл диалога.',
@@ -10544,9 +10548,15 @@ function closeSshHostModal() {
 
 // ─── Thinking Modal ──────────────────────────────────────────────────────────
 let _thinkingContent = '';
+let _thinkingTranslated = '';
+let _thinkingShowingTranslation = false;
+let _thinkingGeneration = 0; // guards against stale fetch responses
 
 function openThinkingModal(content) {
   _thinkingContent = content || '';
+  _thinkingTranslated = '';
+  _thinkingShowingTranslation = false;
+  _thinkingGeneration++;
   const pre = $i('thinkingModalPre');
   const meta = $i('thinkingModalMeta');
   const feedback = $i('thinkingCopyFeedback');
@@ -10555,6 +10565,13 @@ function openThinkingModal(content) {
   const wordCount = Math.round(charCount / 5);
   meta.textContent = `${wordCount.toLocaleString()} words · ${charCount.toLocaleString()} chars`;
   if (feedback) feedback.textContent = '';
+  // Reset translate button
+  const btn = $i('thinkingTranslateBtn');
+  if (btn) {
+    btn.disabled = false;
+    const span = btn.querySelector('span');
+    if (span) span.textContent = t('thinking.translate');
+  }
   openModalOverlay('thinkingModal', { onEscape: closeThinkingModal });
 }
 
@@ -10562,10 +10579,62 @@ function closeThinkingModal() { closeModalOverlay('thinkingModal'); }
 
 async function copyThinkingContent() {
   try {
-    await navigator.clipboard.writeText(_thinkingContent);
+    const text = _thinkingShowingTranslation ? _thinkingTranslated : _thinkingContent;
+    await navigator.clipboard.writeText(text);
     const fb = $i('thinkingCopyFeedback');
     if (fb) { fb.textContent = t('thinking.copied'); setTimeout(() => { if (fb) fb.textContent = ''; }, 2000); }
   } catch { toast(t('thinking.copy_err')); }
+}
+
+async function translateThinking() {
+  const btn = $i('thinkingTranslateBtn');
+  const pre = $i('thinkingModalPre');
+  if (!btn || !pre) return;
+  const span = btn.querySelector('span');
+
+  // Toggle back to original
+  if (_thinkingShowingTranslation) {
+    pre.textContent = _thinkingContent;
+    _thinkingShowingTranslation = false;
+    if (span) span.textContent = t('thinking.translate');
+    return;
+  }
+
+  // Show cached translation
+  if (_thinkingTranslated) {
+    pre.textContent = _thinkingTranslated;
+    _thinkingShowingTranslation = true;
+    if (span) span.textContent = t('thinking.show_original');
+    return;
+  }
+
+  // Fetch translation
+  const gen = _thinkingGeneration;
+  btn.disabled = true;
+  if (span) span.textContent = t('thinking.translating');
+
+  try {
+    const lang = localStorage.getItem('lang') || 'en';
+    const resp = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: _thinkingContent, targetLang: lang }),
+    });
+    if (gen !== _thinkingGeneration) return; // modal was reopened — discard stale response
+    if (!resp.ok) throw new Error(resp.statusText);
+    const data = await resp.json();
+    if (gen !== _thinkingGeneration) return;
+    _thinkingTranslated = data.translated;
+    pre.textContent = _thinkingTranslated;
+    _thinkingShowingTranslation = true;
+    if (span) span.textContent = t('thinking.show_original');
+  } catch (e) {
+    if (gen !== _thinkingGeneration) return;
+    toast(t('thinking.translate_err'));
+    if (span) span.textContent = t('thinking.translate');
+  } finally {
+    if (gen === _thinkingGeneration) btn.disabled = false;
+  }
 }
 
 // ─── CLI Import ──────────────────────────────────────────────────────────────

@@ -3065,6 +3065,91 @@ app.put('/api/lang', express.json(), (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Translate via Claude CLI ─────────────────────────────────────────────────
+// One-shot translation using haiku model, no session persistence.
+// Source text is written to a temp file to avoid OS ARG_MAX limits on large thinking blocks.
+// Translation result is read from a temp file written by Claude via the Write tool.
+
+app.post('/api/translate', express.json({ limit: '500kb' }), (req, res) => {
+  const { text, targetLang } = req.body;
+  if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text required' });
+  const langName = LANG_NAMES[targetLang] || 'English';
+
+  const bin = claudeCli.claudeBin;
+  const env = { ...process.env };
+  delete env.CLAUDECODE;
+  if (!env.ANTHROPIC_BASE_URL) delete env.ANTHROPIC_API_KEY;
+
+  // Write source text to temp file — avoids CLI argument length limits
+  const tmpId = `claude-translate-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const tmpDir = path.join(os.tmpdir(), tmpId);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const srcFile = path.join(tmpDir, 'source.txt');
+  const dstFile = path.join(tmpDir, 'translated.txt');
+  fs.writeFileSync(srcFile, text, 'utf-8');
+
+  const sysPrompt = 'You are a translator. Follow file I/O instructions exactly. Never add commentary.';
+  const prompt = `Read the file ${srcFile}. Translate the entire content to ${langName}. Write ONLY the pure translation (no comments, no explanations, preserve all line breaks and structure) to ${dstFile}.`;
+  const args = [
+    '--print',
+    '--model', 'haiku',
+    '--max-turns', '3',
+    '--no-session-persistence',
+    '--dangerously-skip-permissions',
+    '--tools', 'Read,Write',
+    '--output-format', 'text',
+    '--system-prompt', sysPrompt,
+    prompt,
+  ];
+
+  const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
+  const proc = spawnProc(bin, args, { cwd: tmpDir, env, stdio: ['pipe', 'pipe', 'pipe'], shell: needsShell });
+  proc.stdin.end();
+
+  let stdout = '';
+  let stderr = '';
+  proc.stdout.on('data', d => { stdout += d; });
+  proc.stderr.on('data', d => { stderr += d; });
+
+  const timeout = setTimeout(() => { try { proc.kill('SIGTERM'); } catch {} }, 120_000);
+  let responded = false;
+
+  proc.on('close', code => {
+    clearTimeout(timeout);
+    if (responded) return;
+    responded = true;
+    try {
+      if (code !== 0) {
+        console.error('[translate] claude exit code', code, stderr.substring(0, 500));
+        return res.status(502).json({ error: 'Translation failed' });
+      }
+      // Primary: read from output file; fallback: use stdout if file was not created
+      let translated = '';
+      if (fs.existsSync(dstFile)) {
+        translated = fs.readFileSync(dstFile, 'utf-8').trim();
+      } else if (stdout.trim()) {
+        translated = stdout.trim();
+      }
+      if (!translated) {
+        console.error('[translate] empty translation, stderr:', stderr.substring(0, 500));
+        return res.status(502).json({ error: 'Translation failed' });
+      }
+      res.json({ translated });
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  proc.on('error', err => {
+    clearTimeout(timeout);
+    if (responded) return;
+    responded = true;
+    console.error('[translate] spawn error', err.message);
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    res.status(500).json({ error: 'Failed to spawn translator' });
+  });
+});
+
 // ─── Health check ─────────────────────────────────────────────────────────────
 // Deep health check: verifies DB connectivity, reports uptime / memory / WS connections.
 // Returns HTTP 503 if any critical subsystem is degraded.
