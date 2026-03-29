@@ -3677,11 +3677,12 @@ app.post('/api/sessions/cli-import', (req, res) => {
             const ts = d.timestamp || sessionTs;
             if (!Array.isArray(mc)) continue;
             for (const block of mc) {
-              if (block.type === 'text' && block.text)
+              if (block.type === 'thinking' && block.thinking)
+                msgs.push({ role: 'assistant', type: 'thinking', content: block.thinking, tool_name: null, ts });
+              else if (block.type === 'text' && block.text)
                 msgs.push({ role: 'assistant', type: 'text', content: block.text, tool_name: null, ts });
               else if (block.type === 'tool_use' && block.name)
-                msgs.push({ role: 'assistant', type: 'tool_use', content: JSON.stringify(block.input || {}), tool_name: block.name, ts });
-              // skip thinking blocks
+                msgs.push({ role: 'assistant', type: 'tool', content: JSON.stringify(block.input || {}), tool_name: block.name, ts });
             }
           }
         }
