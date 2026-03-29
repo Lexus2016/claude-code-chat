@@ -2095,6 +2095,42 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .dlg-textarea { width: 100%; min-height: 80px; padding: 12px 14px; background: linear-gradient(180deg, rgba(18,24,38,.96) 0%, rgba(11,16,27,.98) 100%); border: 1px solid rgba(124,106,239,.22); border-radius: 10px; color: var(--text); font-size: 13px; line-height: 1.6; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; resize: vertical; outline: none; transition: border-color .15s, box-shadow .15s; }
 .dlg-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,106,239,.16); }
 .dlg-textarea::placeholder { color: #6e7c98; }
+/* Delegate agent messages in chat */
+.mw.delegate { padding-left: 34px; }
+.mw.delegate::before {
+  content: attr(data-agent-icon);
+  position: absolute; left: 0; top: 2px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #059669);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: white;
+  box-shadow: 0 2px 8px rgba(16,185,129,.35);
+  flex-shrink: 0;
+}
+.mw.delegate .msg {
+  background: linear-gradient(135deg, rgba(16,185,129,.08), rgba(5,150,105,.04));
+  padding: 0; border-radius: 14px 14px 14px 4px;
+  border: 1px solid rgba(16,185,129,.2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.dlg-msg-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px 6px;
+  border-bottom: 1px solid rgba(16,185,129,.1);
+}
+.dlg-msg-agent {
+  font-weight: 700; font-size: 12px; color: #10b981;
+  letter-spacing: .3px;
+}
+.dlg-msg-time {
+  font-size: 10px; color: var(--muted); margin-left: auto;
+}
+.dlg-msg-body {
+  padding: 10px 14px 12px;
+  font-size: 13px; line-height: 1.6;
+}
+.dlg-msg-body p { margin: 0 0 8px; }
+.dlg-msg-body p:last-child { margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -11264,13 +11300,56 @@ function _showNewDlgEntries() {
   if (!_activeDelegation) return;
   const entries = _parseDlgEntries(_activeDelegation.dialog);
   const newEntries = entries.slice(_dlgShownCount);
+  // Collect consecutive entries from the same external agent into one message
+  const groups = [];
   for (const entry of newEntries) {
     if (entry.agent === 'claude-code-studio') { _dlgShownCount++; continue; }
-    const label = _activeDelegation.agentLabel || _activeDelegation.agentId;
-    const header = `**[${label}]** _${entry.timestamp}_\n\n`;
-    const w = addMsg('assistant');
-    w.querySelector('.msg').innerHTML = renderMd(header + entry.text);
+    const last = groups[groups.length - 1];
+    if (last && last.agent === entry.agent) {
+      last.texts.push(entry.text);
+      last.lastTimestamp = entry.timestamp;
+    } else {
+      groups.push({ agent: entry.agent, texts: [entry.text], firstTimestamp: entry.timestamp, lastTimestamp: entry.timestamp });
+    }
     _dlgShownCount++;
+  }
+  const agentId = _activeDelegation.agentId || '';
+  const label = _activeDelegation.agentLabel || agentId;
+  const icon = _agentIcons[agentId] || '⇗';
+  for (const group of groups) {
+    const w = document.createElement('div');
+    w.className = 'mw delegate';
+    w.dataset.agentIcon = icon;
+    const timeStr = group.firstTimestamp === group.lastTimestamp
+      ? group.firstTimestamp.slice(11) // HH:MM:SS
+      : group.firstTimestamp.slice(11) + ' — ' + group.lastTimestamp.slice(11);
+    const combined = group.texts.join('\n\n');
+    const headerEl = document.createElement('div');
+    headerEl.className = 'dlg-msg-header';
+    const agentEl = document.createElement('span');
+    agentEl.className = 'dlg-msg-agent';
+    agentEl.textContent = label;
+    const timeEl = document.createElement('span');
+    timeEl.className = 'dlg-msg-time';
+    timeEl.textContent = timeStr;
+    headerEl.appendChild(agentEl);
+    headerEl.appendChild(timeEl);
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'dlg-msg-body';
+    bodyEl.innerHTML = renderMd(combined);
+    const msgEl = document.createElement('div');
+    msgEl.className = 'msg';
+    msgEl.appendChild(headerEl);
+    msgEl.appendChild(bodyEl);
+    w.appendChild(msgEl);
+    // Copy button
+    const cpBtn = document.createElement('button');
+    cpBtn.className = 'cpb';
+    cpBtn.title = t('copy.msg');
+    cpBtn.onclick = function() { cpMsg(this); };
+    cpBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+    w.appendChild(cpBtn);
+    msgsEl.appendChild(w);
   }
   scrollBottom();
 }
