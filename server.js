@@ -2202,7 +2202,7 @@ async function runCliSingle(p) {
           try { stmts.setPartialText.run(fullText, sessionId); } catch {}
         }
       })
-      .onThinking(t => { fullThinking += t; ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
+      .onThinking(t => { fullThinking += t; log.info('[THINKING-DIAG-CLI] onThinking fired', { len: t.length, totalLen: fullThinking.length, sessionId }); ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
         if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
           try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
@@ -2253,6 +2253,7 @@ async function runCliSingle(p) {
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
       // Clear session ID — next iteration will start a fresh Claude session
       newCid = null;
+      fullThinking = ''; // Reset thinking for fresh session — old thinking belongs to the discarded session
       try { stmts.updateClaudeId.run(null, sessionId); } catch {}
       const replayContent = buildSessionReplayContent(sessionId);
       currentPrompt = replayContent
@@ -2306,8 +2307,28 @@ async function runCliSingle(p) {
   }
 
   // Persist final text and clean up
-  try { if (fullThinking) stmts.addMsg.run(sessionId, 'assistant', 'thinking', fullThinking, null, null, null, null); } catch {}
-  try { if (fullText) stmts.addMsg.run(sessionId, 'assistant', 'text', fullText, null, null, null, null); } catch {}
+  log.info('[THINKING-DIAG-CLI] save phase', { sessionId, hasThinking: !!fullThinking, thinkingLen: fullThinking.length, hasText: !!fullText, textLen: fullText.length });
+
+  // If stream didn't deliver thinking, extract from JSONL file (CLI always writes thinking there)
+  let thinkingFromJsonl = false;
+  if (!fullThinking && newCid) {
+    try {
+      const extracted = extractThinkingFromJsonl(newCid, workdir || WORKDIR);
+      if (extracted) {
+        fullThinking = extracted;
+        thinkingFromJsonl = true;
+        log.info('[THINKING-JSONL] extracted thinking from JSONL', { sessionId, claudeSessionId: newCid, len: extracted.length });
+      }
+    } catch (e) { log.warn('[THINKING-JSONL] extraction failed', { sessionId, error: e.message }); }
+  }
+
+  try { if (fullThinking) stmts.addMsg.run(sessionId, 'assistant', 'thinking', fullThinking, null, null, null, null); } catch (e) { log.error('[THINKING-SAVE-ERR] CLI thinking save failed', { sessionId, error: e.message }); }
+  // If thinking was extracted from JSONL (not streamed), send it to client now
+  // so the badge renders on the done event without requiring a page reload
+  if (thinkingFromJsonl && fullThinking) {
+    try { ws.send(JSON.stringify({ type: 'thinking', text: fullThinking, ...(tabId ? { tabId } : {}) })); } catch {}
+  }
+  try { if (fullText) stmts.addMsg.run(sessionId, 'assistant', 'text', fullText, null, null, null, null); } catch (e) { log.error('[THINKING-SAVE-ERR] CLI text save failed', { sessionId, error: e.message }); }
   try { stmts.setPartialText.run(null, sessionId); } catch {}
   return { cid: newCid, completed: lastResult?.subtype === 'success' };
 }
@@ -2345,7 +2366,7 @@ async function runSshSingle(p) {
           try { stmts.setPartialText.run(fullText, sessionId); } catch {}
         }
       })
-      .onThinking(t => { fullThinking += t; ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
+      .onThinking(t => { fullThinking += t; log.info('[THINKING-DIAG-SSH] onThinking fired', { len: t.length, totalLen: fullThinking.length, sessionId }); ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
         if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
           try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
@@ -2382,6 +2403,7 @@ async function runSshSingle(p) {
       { const _cb = (chatBuffers.get(sessionId) || '') + notice; chatBuffers.set(sessionId, _cb.length > MAX_CHAT_BUFFER ? _cb.slice(-MAX_CHAT_BUFFER) : _cb); }
       try { ws.send(JSON.stringify({ type:'text', text: notice, ...(tabId ? { tabId } : {}) })); } catch {}
       newCid = null;
+      fullThinking = ''; // Reset thinking for fresh session
       try { stmts.updateClaudeId.run(null, sessionId); } catch {}
       const replayContent = buildSessionReplayContent(sessionId);
       currentPrompt = replayContent
@@ -2418,8 +2440,9 @@ async function runSshSingle(p) {
     currentContentBlocks = null;
   }
 
-  try { if (fullThinking) stmts.addMsg.run(sessionId, 'assistant', 'thinking', fullThinking, null, null, null, null); } catch {}
-  try { if (fullText) stmts.addMsg.run(sessionId, 'assistant', 'text', fullText, null, null, null, null); } catch {}
+  log.info('[THINKING-DIAG-SSH] save phase', { sessionId, hasThinking: !!fullThinking, thinkingLen: fullThinking.length, hasText: !!fullText, textLen: fullText.length });
+  try { if (fullThinking) stmts.addMsg.run(sessionId, 'assistant', 'thinking', fullThinking, null, null, null, null); } catch (e) { log.error('[THINKING-SAVE-ERR] SSH thinking save failed', { sessionId, error: e.message }); }
+  try { if (fullText) stmts.addMsg.run(sessionId, 'assistant', 'text', fullText, null, null, null, null); } catch (e) { log.error('[THINKING-SAVE-ERR] SSH text save failed', { sessionId, error: e.message }); }
   try { stmts.setPartialText.run(null, sessionId); } catch {}
   return { cid: newCid, completed: lastResult?.subtype === 'success' };
 }
@@ -3596,6 +3619,53 @@ function cwdToCliProjectName(cwd) {
   return cwd.replace(/[/_]/g, '-');
 }
 
+// Extract thinking blocks from the last assistant turn in a Claude CLI JSONL session file.
+// Reads only the tail of the file (last 200KB) for efficiency on large session files.
+// Returns concatenated thinking text or null if none found.
+function extractThinkingFromJsonl(claudeSessionId, workdir) {
+  if (!claudeSessionId || !/^[a-f0-9-]+$/i.test(claudeSessionId)) return null;
+  const homeDir = os.homedir();
+  const projectDir = path.resolve(path.join(homeDir, '.claude', 'projects', cwdToCliProjectName(workdir)));
+  const jsonlPath = path.resolve(path.join(projectDir, claudeSessionId + '.jsonl'));
+  if (!jsonlPath.startsWith(projectDir)) return null;
+  if (!fs.existsSync(jsonlPath)) return null;
+
+  // Read only the tail — single JSONL lines can reach 600KB+ (large tool_use),
+  // so we need enough to capture the last assistant turn + result line
+  const stat = fs.statSync(jsonlPath);
+  const TAIL_SIZE = 1024 * 1024; // 1MB
+  let raw;
+  if (stat.size > TAIL_SIZE) {
+    const buf = Buffer.alloc(TAIL_SIZE);
+    const fd = fs.openSync(jsonlPath, 'r');
+    fs.readSync(fd, buf, 0, TAIL_SIZE, stat.size - TAIL_SIZE);
+    fs.closeSync(fd);
+    raw = buf.toString('utf8');
+    // Drop the first partial line
+    const nlIdx = raw.indexOf('\n');
+    if (nlIdx >= 0) raw = raw.slice(nlIdx + 1);
+  } else {
+    raw = fs.readFileSync(jsonlPath, 'utf8');
+  }
+
+  const lines = raw.trim().split('\n');
+  const thinkingParts = [];
+  // Walk backwards to find the last assistant message
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let d;
+    try { d = JSON.parse(lines[i]); } catch { continue; }
+    if (d.type === 'assistant' && Array.isArray(d.message?.content)) {
+      for (const block of d.message.content) {
+        if (block.type === 'thinking' && block.thinking) {
+          thinkingParts.push(block.thinking);
+        }
+      }
+      break;
+    }
+  }
+  return thinkingParts.length > 0 ? thinkingParts.join('\n\n') : null;
+}
+
 
 app.get('/api/sessions/cli-list', (req, res) => {
   const workdir = String(req.query.workdir || WORKDIR || '');
@@ -3724,6 +3794,70 @@ app.post('/api/sessions/cli-import', (req, res) => {
   try { tx(); res.json({ imported, skipped, errors }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// Enrich existing sessions with thinking blocks from JSONL files.
+// Finds sessions that have a claude_session_id but no thinking messages,
+// reads thinking from the corresponding JSONL, and inserts them.
+app.post('/api/sessions/enrich-thinking', (req, res) => {
+  const workdir = String(req.body?.workdir || WORKDIR || '');
+  const homeDir = os.homedir();
+  const safeBase = path.resolve(path.join(homeDir, '.claude', 'projects'));
+  const projectPath = path.resolve(path.join(safeBase, cwdToCliProjectName(workdir)));
+  if (!projectPath.startsWith(safeBase)) return res.status(400).json({ error: 'invalid workdir' });
+
+  // Find sessions with a claude_session_id matching the target workdir (or null workdir)
+  const sessions = db.prepare(`SELECT id, claude_session_id FROM sessions WHERE claude_session_id IS NOT NULL AND (workdir = ? OR workdir IS NULL)`).all(workdir);
+  // Find which sessions already have thinking messages
+  const sessionsWithThinking = new Set(
+    db.prepare(`SELECT DISTINCT session_id FROM messages WHERE type='thinking'`).all().map(r => r.session_id)
+  );
+
+  const insertThinking = db.prepare(`INSERT INTO messages (session_id, role, type, content, tool_name, agent_id, created_at) VALUES (?, 'assistant', 'thinking', ?, NULL, NULL, ?)`);
+
+  let enriched = 0, skipped = 0, errored = 0;
+  const tx = db.transaction(() => {
+    for (const sess of sessions) {
+      if (sessionsWithThinking.has(sess.id)) { skipped++; continue; }
+
+      const jsonlPath = path.resolve(path.join(projectPath, sess.claude_session_id + '.jsonl'));
+      if (!jsonlPath.startsWith(projectPath)) { skipped++; continue; }
+      if (!fs.existsSync(jsonlPath)) { skipped++; continue; }
+
+      try {
+        const lines = fs.readFileSync(jsonlPath, 'utf8').trim().split('\n');
+        let inserted = 0;
+
+        for (const line of lines) {
+          let d;
+          try { d = JSON.parse(line); } catch { continue; }
+          if (d.type !== 'assistant' || !Array.isArray(d.message?.content)) continue;
+
+          const ts = d.timestamp || null;
+          for (const block of d.message.content) {
+            if (block.type === 'thinking' && block.thinking) {
+              insertThinking.run(sess.id, block.thinking, ts);
+              inserted++;
+            }
+          }
+        }
+
+        if (inserted > 0) enriched++;
+        else skipped++;
+      } catch (e) {
+        log.error('[ENRICH-THINKING] failed for session', { sessionId: sess.id, error: e.message });
+        errored++;
+      }
+    }
+  });
+
+  try {
+    tx();
+    res.json({ enriched, skipped, errored, total: sessions.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/sessions/reorder', (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'no ids' });
