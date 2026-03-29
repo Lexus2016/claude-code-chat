@@ -2159,7 +2159,7 @@ async function runCliSingle(p) {
     ? ['View','GlobTool','GrepTool','ListDir','ReadNotebook', ...mcpTools]
     : ['Bash','View','GlobTool','GrepTool','ReadNotebook','NotebookEditCell','ListDir','SearchReplace','Write', ...mcpTools];
   const effectiveMaxTurns = maxTurns || 30;
-  let fullText = '', newCid = claudeSessionId, chunkCount = 0;
+  let fullText = '', fullThinking = '', newCid = claudeSessionId, chunkCount = 0;
   let currentPrompt = prompt;
   let continueCount = 0;
   // First invocation carries attachments; subsequent auto-continues do not
@@ -2183,7 +2183,7 @@ async function runCliSingle(p) {
           try { stmts.setPartialText.run(fullText, sessionId); } catch {}
         }
       })
-      .onThinking(t => { ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
+      .onThinking(t => { fullThinking += t; ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
         if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
           try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
@@ -2287,6 +2287,7 @@ async function runCliSingle(p) {
   }
 
   // Persist final text and clean up
+  try { if (fullThinking) stmts.addMsg.run(sessionId, 'assistant', 'thinking', fullThinking, null, null, null, null); } catch {}
   try { if (fullText) stmts.addMsg.run(sessionId, 'assistant', 'text', fullText, null, null, null, null); } catch {}
   try { stmts.setPartialText.run(null, sessionId); } catch {}
   return { cid: newCid, completed: lastResult?.subtype === 'success' };
@@ -2303,7 +2304,7 @@ async function runSshSingle(p) {
     ? ['View','GlobTool','GrepTool','ListDir','ReadNotebook', ...mcpTools]
     : ['Bash','View','GlobTool','GrepTool','ListDir','SearchReplace','Write', ...mcpTools];
   const effectiveMaxTurns = maxTurns || 30;
-  let fullText = '', newCid = claudeSessionId, chunkCount = 0;
+  let fullText = '', fullThinking = '', newCid = claudeSessionId, chunkCount = 0;
   let currentPrompt = prompt;
   let continueCount = 0;
   let currentContentBlocks = Array.isArray(userContent) ? userContent : null;
@@ -2325,7 +2326,7 @@ async function runSshSingle(p) {
           try { stmts.setPartialText.run(fullText, sessionId); } catch {}
         }
       })
-      .onThinking(t => { ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
+      .onThinking(t => { fullThinking += t; ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
         if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
           try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
@@ -2398,6 +2399,7 @@ async function runSshSingle(p) {
     currentContentBlocks = null;
   }
 
+  try { if (fullThinking) stmts.addMsg.run(sessionId, 'assistant', 'thinking', fullThinking, null, null, null, null); } catch {}
   try { if (fullText) stmts.addMsg.run(sessionId, 'assistant', 'text', fullText, null, null, null, null); } catch {}
   try { stmts.setPartialText.run(null, sessionId); } catch {}
   return { cid: newCid, completed: lastResult?.subtype === 'success' };
