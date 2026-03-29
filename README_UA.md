@@ -169,6 +169,8 @@ npm install -g npm@latest
 
 **Forum Mode** — Telegram-супергрупа з темами. Кожен проект отримує власний тред із deep-link навігацією між топіками. Багаті inline-кнопки дій на кожному повідомленні — повністю локалізовані (EN/UA/RU) — Continue, Diff, Files, History, New session. Автоматичне створення проектних топіків. Тема Tasks для керування Kanban. Тема Activity з прямими URL-кнопками для переходу в будь-який проект.
 
+Forum Mode тепер реалізовано у **виділеному самостійному модулі** (`telegram-bot-forum.js`). Кожен проектний топік працює у повністю ізольованому стані — перемикання між проектами в різних тредах ніколи не змішує контекст і сесії. Надійна робота з десятком активних Forum-топіків одночасно.
+
 ![Telegram Forum Mode](public/screenshots/tg_forum.jpg)
 
 ### 👥 Режими агентів
@@ -317,7 +319,8 @@ npx github:Lexus2016/claude-code-studio    # запуск як зазвичай
 server.js              — Express HTTP + WebSocket
 auth.js                — bcrypt passwords, 32-byte session tokens
 claude-cli.js          — spawns `claude` subprocess, parses JSON stream
-telegram-bot.js        — Telegram bot + Forum Mode
+telegram-bot.js        — Telegram bot (Direct Mode)
+telegram-bot-forum.js  — Самостійний модуль Forum Mode (патерн композиції)
 mcp-task-manager.js    — MCP server for autonomous task management
 mcp-notify.js          — MCP server for non-blocking notifications
 public/index.html      — entire frontend (HTML + CSS + JS)

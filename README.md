@@ -169,6 +169,8 @@ Pair in 30 seconds (6-digit code from Settings). Your phone becomes a full remot
 
 **Forum Mode** — Telegram supergroup with Topics. Each project gets its own thread with deep-link navigation between topics. Rich inline action buttons on every message — fully localized in EN/UA/RU — Continue, Diff, Files, History, New session. Auto-creates project topics on demand. Tasks topic for Kanban management. Activity topic with direct URL buttons to jump into any project.
 
+Forum Mode is now powered by a **dedicated standalone module** (`telegram-bot-forum.js`). Each project topic runs in fully isolated per-thread state — switching between projects in different threads never leaks context or session data. Rock-solid multi-project setup, even across a dozen simultaneous Forum topics.
+
 ![Telegram Forum Mode](public/screenshots/tg_forum.jpg)
 
 ### 👥 Agent Modes
@@ -317,7 +319,8 @@ npx github:Lexus2016/claude-code-studio    # launch as usual
 server.js              — Express HTTP + WebSocket
 auth.js                — bcrypt passwords, 32-byte session tokens
 claude-cli.js          — spawns `claude` subprocess, parses JSON stream
-telegram-bot.js        — Telegram bot + Forum Mode
+telegram-bot.js        — Telegram bot (Direct Mode)
+telegram-bot-forum.js  — Forum Mode standalone module (composition pattern)
 mcp-task-manager.js    — MCP server for autonomous task management
 mcp-notify.js          — MCP server for non-blocking notifications
 public/index.html      — entire frontend (HTML + CSS + JS)
