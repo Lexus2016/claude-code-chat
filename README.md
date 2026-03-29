@@ -115,7 +115,12 @@ Not a chatbot. "Refactor this function and add tests" → Claude opens files, ed
 
 **Extended thinking** — when Claude uses extended thinking, each thinking block appears as a "Chain of thought" badge showing estimated word count. Click to open the full reasoning in a modal with a copy button. The CLI import modal and thinking modal are fully localized (EN/UA/RU) — all labels, status messages, and dates adapt to the selected interface language.
 
-**Session export / import** — take your chat history anywhere. Export any session as a portable JSON file with one click — full message history, tool calls, timestamps, and attachments included. Import it back into any Studio instance to resume where you left off, share conversations with teammates, or archive important work. The Import button lives on the welcome screen so you can restore a session without having to create one first.
+**Session export / import** — take your chat history anywhere. Export any session as a portable JSON file with one click — full message history, tool calls, timestamps, and attachments included. Import it back into any Studio instance to resume where you left off. The Import button lives on the welcome screen so you can restore a session without having to create one first.
+
+Use cases beyond backup:
+- **Transfer between machines** — export on your desktop, import on your laptop or server. Same conversation, different computer.
+- **Feed to any AI agent** — drop the exported JSON into ChatGPT, Gemini, or any other AI and say "review what we discussed and let's continue." The format is human-readable and self-contained.
+- **Import from any AI** — had a productive session in another tool? Ask it to save the dialog as `{ "session": { "title": "..." }, "messages": [{ "role": "user"|"assistant", "type": "text", "content": "..." }] }` and import the result into Studio. Your conversations aren't locked to one platform.
 
 ### 📋 Kanban Board
 
