@@ -119,7 +119,9 @@ Thinking blocks are now **fully persistent**: switching tabs mid-generation no l
 
 Hit **Translate** inside the thinking modal to render the chain of thought in your interface language — powered by Claude haiku, response cached so re-translate is instant. The **Copy** button always copies whatever is currently displayed (original or translated).
 
-**Mid-task interrupt** — send a clarification or new instruction *while Claude is actively working*, without stopping the current task. Type your message and choose **Clarify current** to inject it into the running stream, or **New task (queue)** to schedule it after the current one finishes. The badge shows delivery status in real time — green "Delivered" when Claude reads it, and "Task ended" if the task completed before delivery.
+**Mid-task interrupt** — send a clarification or new instruction *while Claude is actively working*, without stopping the current task. A compact `⚡ Clarify` pill appears in the input bar while Claude generates — click it to toggle between **Clarify** (inject into the running stream) and **Queue** (schedule after the current task finishes). Delivery is *guaranteed* via a `PreToolUse` hook: Studio intercepts every tool call and delivers your message before Claude's next action. The badge shows delivery status in real time — "Delivered" when Claude reads it, "Task ended" if the task completed before delivery.
+
+**Rate limit auto-wait** — when Claude's API responds with a rate limit or overload (429), Studio automatically waits for the reset window and retries — no manual refresh, no lost session. A live countdown appears in the chat: *"Rate limited — retrying in 4m 30s"*. Up to 3 automatic retries, max 30-minute wait, correctly handles stale reset timestamps with a safe minimum floor.
 
 **Session fork** — hit the ↗ button next to any chat to create a full copy that shares the same Claude CLI session history. Branch your conversation at any point — explore alternative approaches without losing the original thread. Works on SSH hosts too.
 
@@ -307,7 +309,7 @@ npx github:Lexus2016/claude-code-studio    # launch as usual
 
 | Category | Features |
 |----------|----------|
-| **Chat** | Real-time streaming, screenshot paste, file attach (`@file`), conversation fork, auto-continue (3x), session compact, sidebar quick-filter, CLI session import, extended thinking display, session export/import (JSON), mid-task interrupt, session fork |
+| **Chat** | Real-time streaming, screenshot paste, file attach (`@file`), conversation fork, auto-continue (3x), session compact, sidebar quick-filter, CLI session import, extended thinking display, session export/import (JSON), mid-task interrupt (PreToolUse hook), session fork, rate limit auto-wait |
 | **Kanban** | Task queue, parallel + sequential, cross-tab sync, drag-and-drop tabs, dependency graphs |
 | **Scheduler** | One-time + recurring (hourly/daily/weekly/monthly), 5 parallel workers, Run Now, SQLite-persisted |
 | **Task Manager** | Autonomous child tasks, chains, context passing, result reporting, cancellation (MCP) |
@@ -320,7 +322,7 @@ npx github:Lexus2016/claude-code-studio    # launch as usual
 | **Remote** | SSH servers, SFTP upload, `#` quick-attach, cloudflared/ngrok tunnels |
 | **Mobile** | Native-feel UI, bottom sheet, scroll-snap Kanban, iOS-safe, touch-optimized |
 | **Dashboard** | Activity heatmap, tool usage, model distribution, Automation Index, peak hours |
-| **Reliability** | Self-healing sessions, crash protection, atomic writes, instant stop |
+| **Reliability** | Self-healing sessions, crash protection, atomic writes, instant stop, rate limit auto-wait, concurrency safety (session lock + busy_timeout) |
 | **Security** | bcrypt auth, AES-256-GCM SSH, Helmet.js, path traversal protection, XSS/SQLi prevention |
 | **Platform** | Windows/macOS/Linux, Docker (non-root, registry mirror), LLM proxy/gateway, 3 languages (EN/UA/RU), OpenRouter support |
 

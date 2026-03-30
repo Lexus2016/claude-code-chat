@@ -1234,12 +1234,15 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .msg-interrupt.delivered::before { content: '✓'; }
 .msg-interrupt.expired { color: var(--muted); border-color: var(--border); background: var(--s2); opacity: .7; }
 .msg-interrupt.expired::before { content: '—'; }
-.interrupt-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; margin-bottom: 4px; }
-.interrupt-bar.hidden { display: none; }
-.ib-opt { background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 3px 10px; font-size: 12px; color: var(--muted); cursor: pointer; transition: all .15s; font-family: inherit; }
-.ib-opt:hover { background: var(--s3); color: var(--text); }
-.ib-opt.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.ib-label { font-size: 11px; color: var(--muted); user-select: none; }
+/* ─── Interrupt mode pill (inside .iw) ─── */
+.interrupt-pill { display: none; align-items: center; gap: 0; flex-shrink: 0; align-self: flex-end; margin-bottom: 5px; animation: ib-fadein .15s ease-out; }
+.interrupt-pill.visible { display: inline-flex; }
+.interrupt-pill-btn { background: rgba(229,164,53,.08); border: 1px solid rgba(229,164,53,.2); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 500; font-family: inherit; color: #e5a435; cursor: pointer; transition: all .12s; white-space: nowrap; line-height: 1.4; user-select: none; }
+.interrupt-pill-btn:hover { border-color: rgba(229,164,53,.45); background: rgba(229,164,53,.14); }
+.interrupt-pill-btn:active { transform: scale(.95); }
+.interrupt-pill-btn[data-mode="queue"] { color: var(--muted); background: var(--s3); border-color: var(--border); border-style: dashed; }
+.interrupt-pill-btn[data-mode="queue"]:hover { color: var(--text); background: rgba(122,139,170,.12); border-color: rgba(122,139,170,.35); }
+@keyframes ib-fadein { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
 /* Hide message action buttons for queued messages — they are irrelevant and overlap queue controls on short texts */
 .mw:has(.msg-queued) .use-btn,
 .mw:has(.msg-queued) .reply-btn,
@@ -2696,12 +2699,10 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
       </div>
       <button class="reply-preview-close" onclick="clearReply()" data-i18n-title="reply.cancel" title="Cancel reply">✕</button>
     </div>
-    <div id="interruptBar" class="interrupt-bar hidden">
-      <span class="ib-label" data-i18n="interrupt.label">Send as:</span>
-      <button class="ib-opt active" data-mode="interrupt" onclick="setInterruptMode('interrupt')" data-i18n="interrupt.stream">📩 Clarify current</button>
-      <button class="ib-opt" data-mode="queue" onclick="setInterruptMode('queue')" data-i18n="interrupt.queue">📝 New task (queue)</button>
-    </div>
     <div class="iw">
+      <div id="interruptPill" class="interrupt-pill">
+        <button class="interrupt-pill-btn" id="interruptPillBtn" data-mode="interrupt" onclick="cycleInterruptMode()"></button>
+      </div>
       <button class="attach-btn" type="button" onclick="$i('filePickerInput').click()" data-i18n-title="attach.file" title="Додати файл" aria-label="Attach file">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
@@ -3542,6 +3543,7 @@ const TRANSLATIONS = {
     'attach.file':'Додати файл (📎)',
     'queue.label':'У черзі','queue.edit.title':'Редагувати повідомлення','queue.del.title':'Видалити з черги',
     'interrupt.label':'Відправити як:','interrupt.stream':'📩 Уточнити поточне','interrupt.queue':'📝 Нове завдання (черга)',
+    'interrupt.pill.clarify':'Уточнити','interrupt.pill.queue':'Черга','interrupt.pill.clarify.tip':'Натисніть щоб переключити на режим черги','interrupt.pill.queue.tip':'Натисніть щоб переключити на режим уточнення',
     'interrupt.queued':'Уточнення надіслано','interrupt.delivered':'Доставлено до Claude','interrupt.expired':'Завдання завершено',
     'agents.title':'Активні агенти',
     'sess.fork':'Створити копію чату з тією ж історією Claude','sess.fork.na':'Форк недоступний — немає сесії Claude CLI','sess.forked':'Сесію форкнуто',
@@ -3769,6 +3771,7 @@ const TRANSLATIONS = {
     'attach.file':'Attach file (📎)',
     'queue.label':'In queue','queue.edit.title':'Edit message','queue.del.title':'Remove from queue',
     'interrupt.label':'Send as:','interrupt.stream':'📩 Clarify current','interrupt.queue':'📝 New task (queue)',
+    'interrupt.pill.clarify':'Clarify','interrupt.pill.queue':'Queue','interrupt.pill.clarify.tip':'Click to switch to queue mode','interrupt.pill.queue.tip':'Click to switch to clarify mode',
     'interrupt.queued':'Clarification sent','interrupt.delivered':'Delivered to Claude','interrupt.expired':'Task ended',
     'agents.title':'Active agents',
     'sess.fork':'Create a copy of this chat with the same Claude history','sess.fork.na':'Fork unavailable — no Claude CLI session','sess.forked':'Session forked',
@@ -3996,6 +3999,7 @@ const TRANSLATIONS = {
     'attach.file':'Прикрепить файл (📎)',
     'queue.label':'В очереди','queue.edit.title':'Редактировать сообщение','queue.del.title':'Удалить из очереди',
     'interrupt.label':'Отправить как:','interrupt.stream':'📩 Уточнить текущее','interrupt.queue':'📝 Новая задача (очередь)',
+    'interrupt.pill.clarify':'Уточнить','interrupt.pill.queue':'Очередь','interrupt.pill.clarify.tip':'Нажмите чтобы переключить на режим очереди','interrupt.pill.queue.tip':'Нажмите чтобы переключить на режим уточнения',
     'interrupt.queued':'Уточнение отправлено','interrupt.delivered':'Доставлено в Claude','interrupt.expired':'Задание завершено',
     'agents.title':'Активные агенты',
     'sess.fork':'Создать копию чата с той же историей Claude','sess.fork.na':'Форк недоступен — нет сессии Claude CLI','sess.forked':'Сессия форкнута',
@@ -5701,29 +5705,35 @@ function _rlClear() {
 
 function setSendStop(generating) {
   const stopBtn = $i('stopBtn');
-  const interruptBar = $i('interruptBar');
+  const pill = $i('interruptPill');
   if (generating) {
     stopBtn.classList.remove('hidden');
-    if (interruptBar) {
-      interruptBar.classList.remove('hidden');
-      // Sync button active states with interruptSendMode (may have been reset)
-      for (const btn of interruptBar.querySelectorAll('.ib-opt')) {
-        btn.classList.toggle('active', btn.dataset.mode === interruptSendMode);
-      }
+    if (pill) {
+      pill.classList.add('visible');
+      renderInterruptPill();
     }
   } else {
     stopBtn.classList.add('hidden');
-    if (interruptBar) interruptBar.classList.add('hidden');
+    if (pill) pill.classList.remove('visible');
     interruptSendMode = 'interrupt'; // reset to default for next time
   }
 }
 
-function setInterruptMode(mode) {
-  interruptSendMode = mode;
-  const bar = $i('interruptBar');
-  if (!bar) return;
-  for (const btn of bar.querySelectorAll('.ib-opt')) {
-    btn.classList.toggle('active', btn.dataset.mode === mode);
+function cycleInterruptMode() {
+  interruptSendMode = interruptSendMode === 'interrupt' ? 'queue' : 'interrupt';
+  renderInterruptPill();
+}
+
+function renderInterruptPill() {
+  const btn = $i('interruptPillBtn');
+  if (!btn) return;
+  btn.dataset.mode = interruptSendMode;
+  if (interruptSendMode === 'interrupt') {
+    btn.textContent = '⚡ ' + (t('interrupt.pill.clarify') || 'Clarify');
+    btn.title = t('interrupt.pill.clarify.tip') || 'Click to switch to queue mode';
+  } else {
+    btn.textContent = '📝 ' + (t('interrupt.pill.queue') || 'Queue');
+    btn.title = t('interrupt.pill.queue.tip') || 'Click to switch to clarify mode';
   }
 }
 
