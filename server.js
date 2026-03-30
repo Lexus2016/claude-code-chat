@@ -1319,6 +1319,33 @@ function processQueue() {
 // Run every 15s (fast enough to pick up unblocked tasks promptly,
 // light enough to be negligible — just two SELECT queries on SQLite)
 setInterval(processQueue, 15000);
+// Safety net: periodically clean up orphaned activeChatSessions entries.
+// An entry is orphaned if no WS connection has _tabBusy=true for it AND no activeTasks entry exists.
+// This prevents permanent session lock from edge cases in the stale-finally path.
+setInterval(() => {
+  if (activeChatSessions.size === 0) return;
+  for (const sid of activeChatSessions) {
+    if (activeTasks.has(sid)) continue; // still running — keep
+    let anyWsBusy = false;
+    for (const client of wss.clients) {
+      if (client._tabBusy?.[sid]) { anyWsBusy = true; break; }
+    }
+    if (!anyWsBusy) {
+      activeChatSessions.delete(sid);
+      log.warn('activeChatSessions orphan cleaned', { sessionId: sid });
+      // Trigger dequeue on any live WS watching this session (queue may have been stuck)
+      const watchers = sessionWatchers.get(sid);
+      if (watchers) {
+        for (const liveWs of watchers) {
+          if (liveWs.readyState === 1 && liveWs._tabQueue?.[sid]?.length > 0) {
+            liveWs.emit('message', JSON.stringify({ type: '_dequeue_next', tabId: sid }));
+            break;
+          }
+        }
+      }
+    }
+  }
+}, 30000);
 // Kick off on startup — smart recovery for in_progress tasks
 setTimeout(() => {
   const stuck = db.prepare(`SELECT * FROM tasks WHERE status='in_progress'`).all();
@@ -6345,24 +6372,31 @@ wss.on('connection', (ws) => {
         }
       }
     } finally {
-      activeTasks.delete(localSessionId);
-      chatBuffers.delete(localSessionId); // cleanup in-memory buffer
-      pendingInterrupts.delete(localSessionId); // cleanup pending mid-task interrupts
-      // Clean up any pending ask_user questions for this session
-      for (const [rid, entry] of pendingAskUser) {
-        if (entry.sessionId === localSessionId) {
-          clearTimeout(entry.timer);
-          pendingAskUser.delete(rid);
-          entry.resolve({ answer: '[Session ended]' });
-        }
+      // Guard: only delete activeTasks/chatBuffers if WE are the owner. In stop+new-chat
+      // scenario, a newer processChat may have already called activeTasks.set() with its own
+      // entry — blindly deleting would remove the new owner's task tracking.
+      const _ownTask = activeTasks.get(localSessionId);
+      if (!_ownTask || _ownTask.abortController === myAbortController) {
+        activeTasks.delete(localSessionId);
+        chatBuffers.delete(localSessionId); // cleanup in-memory buffer — only if we own the session
       }
-      try { stmts.clearLastUserMsg.run(localSessionId); } catch {}
-      // Detect stale finally: if a stop happened, ws._tabAbort was deleted or replaced
+      // Detect stale finally early: if a stop happened, ws._tabAbort was deleted or replaced
       // by a new processChat. In that case, another processChat now owns this tab — our
-      // cleanup would stomp on its _tabBusy flag. Skip cleanup and let the new owner handle it.
+      // cleanup would stomp on its state. Skip session-specific cleanup and let the new owner handle it.
       const isStale = myAbortController !== null && (effectiveTabId
         ? ws._tabAbort?.[effectiveTabId] !== myAbortController
         : ws._abort !== myAbortController);
+      if (!isStale) {
+        pendingInterrupts.delete(localSessionId);
+        for (const [rid, entry] of pendingAskUser) {
+          if (entry.sessionId === localSessionId) {
+            clearTimeout(entry.timer);
+            pendingAskUser.delete(rid);
+            entry.resolve({ answer: '[Session ended]' });
+          }
+        }
+        try { stmts.clearLastUserMsg.run(localSessionId); } catch {}
+      }
       if (!isStale && effectiveTabId) {
         ws._tabBusy[effectiveTabId] = false;
         activeChatSessions.delete(effectiveTabId);
@@ -6407,6 +6441,15 @@ wss.on('connection', (ws) => {
           try { ws.send(JSON.stringify({ type: 'queue_update', pending: 0, items: [] })); } catch {}
         }
       } else if (isStale && effectiveTabId) {
+        // Fix: clean up activeChatSessions in stale path to prevent permanent session lock.
+        // When WS disconnects during processChat, isStale becomes true because ws._tabAbort
+        // was cleared by ws.on('close'). Without this cleanup, activeChatSessions retains the
+        // session ID forever — all new messages get queued but never dequeued (stuck queue bug).
+        // Only skip cleanup if a NEW processChat has taken over on this same WS (stop+new-chat
+        // scenario where ws._tabAbort[effectiveTabId] holds the new controller).
+        if (!ws._tabAbort?.[effectiveTabId]) {
+          activeChatSessions.delete(effectiveTabId);
+        }
         // Page refresh scenario: task finished on old (closed) WS but queue items
         // persist in sessionQueues. Trigger dequeue on the live WS that now owns this session.
         const pendingQueue = sessionQueues.get(effectiveTabId);
@@ -6415,7 +6458,8 @@ wss.on('connection', (ws) => {
             const watchers = sessionWatchers.get(effectiveTabId);
             if (!watchers) return;
             for (const liveWs of watchers) {
-              if (liveWs.readyState === 1) {
+              if (liveWs.readyState === 1 &&
+                  !activeChatSessions.has(effectiveTabId)) {
                 liveWs.emit('message', JSON.stringify({ type: '_dequeue_next', tabId: effectiveTabId }));
                 break;
               }
@@ -6757,6 +6801,20 @@ wss.on('connection', (ws) => {
         // Cancel any pending delayed cleanup — a live WS is reclaiming this session
         const _cleanupTimer = sessionQueueCleanupTimers.get(sessionId);
         if (_cleanupTimer) { clearTimeout(_cleanupTimer); sessionQueueCleanupTimers.delete(sessionId); }
+        // Fix: clean up orphaned activeChatSessions entry on subscribe.
+        // A previous WS disconnect during processChat can leave activeChatSessions with a stale
+        // entry that permanently blocks queue dequeue. Detect: session is in activeChatSessions
+        // but no live WS has _tabBusy=true and no activeTasks entry exists → orphaned lock.
+        if (activeChatSessions.has(sessionId) && !activeTasks.has(sessionId)) {
+          let _anyBusy = false;
+          for (const client of wss.clients) {
+            if (client._tabBusy?.[sessionId]) { _anyBusy = true; break; }
+          }
+          if (!_anyBusy) {
+            activeChatSessions.delete(sessionId);
+            log.warn('subscribe: cleaned orphaned activeChatSessions', { sessionId });
+          }
+        }
         // Restore queue from persistent storage (survives page refresh / WS reconnect)
         if (!ws._tabQueue[sessionId]?.length && sessionQueues.has(sessionId) && sessionQueues.get(sessionId).length > 0) {
           ws._tabQueue[sessionId] = sessionQueues.get(sessionId); // shared ref

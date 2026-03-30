@@ -119,7 +119,7 @@ Thinking blocks are now **fully persistent**: switching tabs mid-generation no l
 
 Hit **Translate** inside the thinking modal to render the chain of thought in your interface language — powered by Claude haiku, response cached so re-translate is instant. The **Copy** button always copies whatever is currently displayed (original or translated).
 
-**Mid-task interrupt** — send a clarification or new instruction *while Claude is actively working*, without stopping the current task. A compact `⚡ Clarify` pill appears in the input bar while Claude generates — click it to toggle between **Clarify** (inject into the running stream) and **Queue** (schedule after the current task finishes). Delivery is *guaranteed* via a `PreToolUse` hook: Studio intercepts every tool call and delivers your message before Claude's next action. The badge shows delivery status in real time — "Delivered" when Claude reads it, "Task ended" if the task completed before delivery.
+**Mid-task interrupt** — send a clarification or new instruction *while Claude is actively working*, without stopping the current task. A compact `⚡ Clarify` pill appears in the input bar while Claude generates — click it to toggle between **Clarify** (inject into the running stream) and **Queue** (schedule after the current task finishes). Delivery is *guaranteed* via a `PreToolUse` hook: Studio intercepts every tool call and delivers your message before Claude's next action. The badge shows delivery status in real time — "Delivered" when Claude reads it, "Task ended" if the task completed before delivery. The pill text updates instantly when you switch the UI language — no page refresh needed.
 
 **Rate limit auto-wait** — when Claude's API responds with a rate limit or overload (429), Studio automatically waits for the reset window and retries — no manual refresh, no lost session. A live countdown appears in the chat: *"Rate limited — retrying in 4m 30s"*. Up to 3 automatic retries, max 30-minute wait, correctly handles stale reset timestamps with a safe minimum floor.
 
@@ -186,7 +186,7 @@ Pair in 30 seconds (6-digit code from Settings). Your phone becomes a full remot
 
 **Forum Mode** — Telegram supergroup with Topics. Each project gets its own thread with deep-link navigation between topics. Rich inline action buttons on every message — fully localized in EN/UA/RU — Continue, Diff, Files, History, New session. Auto-creates project topics on demand. Tasks topic for Kanban management. Activity topic with direct URL buttons to jump into any project.
 
-Forum Mode is now powered by a **dedicated standalone module** (`telegram-bot-forum.js`). Each project topic runs in fully isolated per-thread state — switching between projects in different threads never leaks context or session data. Rock-solid multi-project setup, even across a dozen simultaneous Forum topics.
+Forum Mode is now powered by a **dedicated standalone module** (`telegram-bot-forum.js`). Each project topic runs in fully isolated per-thread state — switching between projects in different threads never leaks context or session data. Rock-solid multi-project setup, even across a dozen simultaneous Forum topics. The **Open Chat** button always uses a callback so the bot properly switches session context and shows a live chat preview — not just a raw topic URL jump.
 
 ![Telegram Forum Mode](public/screenshots/tg_forum.jpg)
 
@@ -322,7 +322,7 @@ npx github:Lexus2016/claude-code-studio    # launch as usual
 | **Remote** | SSH servers, SFTP upload, `#` quick-attach, cloudflared/ngrok tunnels |
 | **Mobile** | Native-feel UI, bottom sheet, scroll-snap Kanban, iOS-safe, touch-optimized |
 | **Dashboard** | Activity heatmap, tool usage, model distribution, Automation Index, peak hours |
-| **Reliability** | Self-healing sessions, crash protection, atomic writes, instant stop, rate limit auto-wait, concurrency safety (session lock + busy_timeout) |
+| **Reliability** | Self-healing sessions, crash protection, atomic writes, instant stop, rate limit auto-wait, concurrency safety (session lock + busy_timeout), orphaned session lock auto-cleanup |
 | **Security** | bcrypt auth, AES-256-GCM SSH, Helmet.js, path traversal protection, XSS/SQLi prevention |
 | **Platform** | Windows/macOS/Linux, Docker (non-root, registry mirror), LLM proxy/gateway, 3 languages (EN/UA/RU), OpenRouter support |
 

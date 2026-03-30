@@ -300,17 +300,10 @@ class TelegramBotForum {
     if (sessionId) {
       const session = this._api.db.prepare('SELECT workdir FROM sessions WHERE id = ?').get(sessionId);
       if (session?.workdir) {
-        const projectTopic = topics.find(t => t.type === 'project' && t.workdir === session.workdir);
         const urlRow = [];
 
-        // Use URL buttons for cross-topic navigation
-        if (projectTopic) {
-          const topicUrl = this._topicLink(forumChatId, projectTopic.thread_id);
-          urlRow.push({ text: this._api.t('fm_btn_open_chat'), url: topicUrl });
-        } else {
-          // Fallback: callback button to auto-create project topic + show preview
-          urlRow.push({ text: this._api.t('fm_btn_open_chat'), callback_data: `fa:open:${sessionId}` });
-        }
+        // Always use callback so the bot can switch session + show chat preview
+        urlRow.push({ text: this._api.t('fm_btn_open_chat'), callback_data: `fa:open:${sessionId}` });
 
         // Action buttons row — Continue session or start New session
         const actionRow = [
