@@ -77,3 +77,4 @@ README_RU.html
 
 # Cross-agent delegation workspace
 .crosswork/
+test-snapshot-*.md
