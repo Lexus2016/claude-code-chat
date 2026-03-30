@@ -819,6 +819,11 @@ const SET_UI_STATE_SECRET = require('crypto').randomBytes(16).toString('hex');
 // ─── Task Manager (Internal MCP) ─────────────────────────────────────────
 const TASK_MANAGER_SECRET = require('crypto').randomBytes(16).toString('hex');
 
+// ─── User Interrupt (Internal MCP) ──────────────────────────────────────
+const INTERRUPT_SECRET = require('crypto').randomBytes(16).toString('hex');
+const pendingInterrupts = new Map(); // sessionId → [{ id, content, createdAt }]
+let _interruptIdCounter = 0;
+
 function broadcastToSession(sessionId, data) {
   const watchers = sessionWatchers.get(sessionId);
   if (!watchers?.size) return;
@@ -1921,6 +1926,8 @@ const TASK_MANAGER_INSTRUCTION = `\n\nYou have access to task management tools (
 When creating child tasks, decide carefully what context to pass — include only what the child needs (issue details, file paths, error messages), not your entire conversation.
 Most tasks should be completed directly without creating subtasks. Only create child tasks when the work genuinely requires decomposition into independent units.`;
 
+const USER_INTERRUPT_INSTRUCTION = `\n\nYou have access to a "check_user_messages" tool (via MCP server "_ccs_user_interrupt"). The user can send clarifications or corrections WHILE you are working. Call check_user_messages BEFORE starting each major step (e.g. before editing files, running commands, or making design decisions). If it returns messages, acknowledge them and adjust your approach. If no messages, continue normally. This check is lightweight — do not skip it.`;
+
 // Status line + tool call instructions (~100 tokens vs original ~170)
 const STATUS_LINE_INSTRUCTION = `\n\nIMPORTANT: Always end your response with a single clear status line separated by "---". Use one of these patterns:
 - "✅ Done — [brief summary of what was completed]." when the task is fully finished.
@@ -2000,6 +2007,7 @@ function buildSystemPrompt(skillIds, config) {
   prompt += ASK_USER_INSTRUCTION;
   prompt += NOTIFY_USER_INSTRUCTION;
   prompt += SET_UI_STATE_INSTRUCTION;
+  prompt += USER_INTERRUPT_INSTRUCTION;
   prompt += STATUS_LINE_INSTRUCTION;
   prompt += TOOL_CALL_INSTRUCTION;
 
@@ -2177,7 +2185,7 @@ async function runCliSingle(p) {
   const mp = mode==='planning' ? 'MODE: PLANNING ONLY. Analyze, plan, DO NOT modify files.\n\n' : mode==='task' ? 'MODE: EXECUTION.\n\n' : '';
   const sp = (mp + (systemPrompt||'')).trim() || undefined;
   // MCP tools must use the mcp__<serverName>__<toolName> format in allowedTools
-  const mcpTools = ['mcp___ccs_set_ui_state__set_ui_state', 'mcp___ccs_ask_user__ask_user', 'mcp___ccs_notify__notify_user'];
+  const mcpTools = ['mcp___ccs_set_ui_state__set_ui_state', 'mcp___ccs_ask_user__ask_user', 'mcp___ccs_notify__notify_user', 'mcp___ccs_user_interrupt__check_user_messages'];
   const tools = mode==='planning'
     ? ['View','GlobTool','GrepTool','ListDir','ReadNotebook', ...mcpTools]
     : ['Bash','View','GlobTool','GrepTool','ReadNotebook','NotebookEditCell','ListDir','SearchReplace','Write', ...mcpTools];
@@ -2208,7 +2216,7 @@ async function runCliSingle(p) {
       })
       .onThinking(t => { fullThinking += t; log.info('[THINKING-DIAG-CLI] onThinking fired', { len: t.length, totalLen: fullThinking.length, sessionId }); ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
-        if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
+        if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state' || name === 'check_user_messages') {
           try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
           return;
         }
@@ -2353,7 +2361,7 @@ async function runSshSingle(p) {
   const mp = mode==='planning' ? 'MODE: PLANNING ONLY. Analyze, plan, DO NOT modify files.\n\n' : mode==='task' ? 'MODE: EXECUTION.\n\n' : '';
   const sp = (mp + (systemPrompt||'')).trim() || undefined;
   // MCP tools must use the mcp__<serverName>__<toolName> format in allowedTools
-  const mcpTools = ['mcp___ccs_set_ui_state__set_ui_state', 'mcp___ccs_ask_user__ask_user', 'mcp___ccs_notify__notify_user'];
+  const mcpTools = ['mcp___ccs_set_ui_state__set_ui_state', 'mcp___ccs_ask_user__ask_user', 'mcp___ccs_notify__notify_user', 'mcp___ccs_user_interrupt__check_user_messages'];
   const tools = mode==='planning'
     ? ['View','GlobTool','GrepTool','ListDir','ReadNotebook', ...mcpTools]
     : ['Bash','View','GlobTool','GrepTool','ListDir','SearchReplace','Write', ...mcpTools];
@@ -2382,7 +2390,7 @@ async function runSshSingle(p) {
       })
       .onThinking(t => { fullThinking += t; log.info('[THINKING-DIAG-SSH] onThinking fired', { len: t.length, totalLen: fullThinking.length, sessionId }); ws.send(JSON.stringify({ type:'thinking', text:t, ...(tabId ? { tabId } : {}) })); })
       .onTool((name, inp) => {
-        if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state') {
+        if (name === 'ask_user' || name === 'notify_user' || name === 'set_ui_state' || name === 'check_user_messages') {
           try { stmts.addMsg.run(sessionId,'assistant','tool',(inp||'').substring(0,500),name,null,null,null); } catch {}
           return;
         }
@@ -3057,6 +3065,35 @@ app.post('/api/internal/task-manager', express.json({ limit: '1mb' }), (req, res
     log.error('[task-manager] endpoint error', { action, err: err.message, stack: err.stack });
     return res.status(500).json({ error: err.message });
   }
+});
+
+// ─── Internal MCP: user-interrupt endpoint ──────────────────────────────────
+// Called by mcp-user-interrupt.js to fetch and consume pending clarifications.
+// Registered BEFORE authMiddleware — MCP subprocess authenticates with INTERRUPT_SECRET.
+app.post('/api/internal/user-interrupt', express.json(), (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  if (authHeader !== `Bearer ${INTERRUPT_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'Missing sessionId' });
+
+  // Atomically read and clear pending messages for this session
+  const messages = pendingInterrupts.get(sessionId) || [];
+  if (messages.length > 0) {
+    pendingInterrupts.delete(sessionId);
+
+    // Notify UI that messages were delivered to Claude
+    const task = activeTasks.get(sessionId);
+    if (task?.proxy) {
+      for (const m of messages) {
+        try { task.proxy.send(JSON.stringify({ type: 'interrupt_delivered', interruptId: m.id, tabId: sessionId })); } catch {}
+      }
+    }
+  }
+
+  return res.json({ messages });
 });
 
 app.use(auth.authMiddleware);
@@ -4969,6 +5006,15 @@ async function processTelegramChat({ sessionId, text, userId, chatId, threadId, 
         SET_UI_STATE_SECRET: SET_UI_STATE_SECRET,
       },
     };
+    mcpServers['_ccs_user_interrupt'] = {
+      command: 'node',
+      args: [path.join(__dirname, 'mcp-user-interrupt.js')],
+      env: {
+        INTERRUPT_SERVER_URL: `http://127.0.0.1:${PORT}`,
+        INTERRUPT_SESSION_ID: sessionId,
+        INTERRUPT_SECRET: INTERRUPT_SECRET,
+      },
+    };
 
     // Save last user msg for reconnect recovery
     stmts.setLastUserMsg.run(text, sessionId);
@@ -6021,6 +6067,15 @@ wss.on('connection', (ws) => {
           SET_UI_STATE_SECRET: SET_UI_STATE_SECRET,
         },
       };
+      mcpServers['_ccs_user_interrupt'] = {
+        command: 'node',
+        args: [path.join(__dirname, 'mcp-user-interrupt.js')],
+        env: {
+          INTERRUPT_SERVER_URL: `http://127.0.0.1:${PORT}`,
+          INTERRUPT_SESSION_ID: localSessionId,
+          INTERRUPT_SECRET: INTERRUPT_SECRET,
+        },
+      };
 
       proxy.send(JSON.stringify({ type:'status', status:'thinking', mode, agentMode, model, tabId: effectiveTabId }));
 
@@ -6106,6 +6161,7 @@ wss.on('connection', (ws) => {
     } finally {
       activeTasks.delete(localSessionId);
       chatBuffers.delete(localSessionId); // cleanup in-memory buffer
+      pendingInterrupts.delete(localSessionId); // cleanup pending mid-task interrupts
       // Clean up any pending ask_user questions for this session
       for (const [rid, entry] of pendingAskUser) {
         if (entry.sessionId === localSessionId) {
@@ -6248,6 +6304,40 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ─── Mid-task interrupt: user sends clarification to running Claude process ───
+    if (msg.type === 'interrupt') {
+      const tabId = msg.tabId;
+      const text = (msg.text || '').trim();
+      if (!tabId || !text) return;
+
+      // Soft guard: warn if no active task is found, but still store the interrupt.
+      // Race window: between session_started (client renames tab) and activeTasks.set()
+      // both _tabBusy and activeTasks can be momentarily empty for the new session ID.
+      // Storing the interrupt is harmless — it'll be consumed by MCP or cleaned up in finally.
+      if (!ws._tabBusy[tabId] && !activeTasks.has(tabId)) {
+        log.warn('[interrupt] no active task found (race window?)', { tabId });
+      }
+
+      // Store pending interrupt
+      if (!pendingInterrupts.has(tabId)) pendingInterrupts.set(tabId, []);
+      const queue = pendingInterrupts.get(tabId);
+      if (queue.length >= 10) {
+        ws.send(JSON.stringify({ type: 'error', error: 'Interrupt queue full (max 10).', tabId }));
+        return;
+      }
+      const interruptId = ++_interruptIdCounter;
+      queue.push({ id: interruptId, content: text, createdAt: new Date().toISOString() });
+
+      // Confirm to client
+      ws.send(JSON.stringify({ type: 'interrupt_queued', interruptId, tabId, text }));
+
+      // Save to DB as a user message with special type
+      try { stmts.addMsg.run(tabId, 'user', 'interrupt', text, null, null, null, null); } catch {}
+
+      log.info('[interrupt] queued', { sessionId: tabId, interruptId, textLen: text.length });
+      return;
+    }
+
     if (msg.type==='stop') {
       const tabId = msg.tabId;
       if (tabId && ws._tabAbort && ws._tabAbort[tabId]) {
@@ -6258,6 +6348,7 @@ wss.on('connection', (ws) => {
         ws._tabBusy[tabId] = false;
         if (ws._tabQueue) ws._tabQueue[tabId] = [];
         sessionQueues.delete(tabId);
+        pendingInterrupts.delete(tabId);
         ws._tabAbort[tabId].abort();
         delete ws._tabAbort[tabId];
       } else if (!tabId) {

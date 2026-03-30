@@ -1221,6 +1221,17 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 .sb svg { width: 15px; height: 15px; }
 .msg-queued { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); margin-top: 5px; padding: 3px 6px 3px 8px; background: var(--s2); border: 1px solid var(--border); border-radius: 10px; position: relative; z-index: 2; }
 .msg-queued::before { content: '⏳'; font-size: 11px; }
+/* ─── Mid-task interrupt (clarification) ─── */
+.msg-interrupt { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #e0a030; margin-top: 5px; padding: 3px 8px; background: rgba(224,160,48,.1); border: 1px solid rgba(224,160,48,.25); border-radius: 10px; position: relative; z-index: 2; }
+.msg-interrupt::before { content: '📩'; font-size: 11px; }
+.msg-interrupt.delivered { color: #50b860; border-color: rgba(80,184,96,.25); background: rgba(80,184,96,.08); }
+.msg-interrupt.delivered::before { content: '✓'; }
+.interrupt-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; margin-bottom: 4px; }
+.interrupt-bar.hidden { display: none; }
+.ib-opt { background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 3px 10px; font-size: 12px; color: var(--muted); cursor: pointer; transition: all .15s; font-family: inherit; }
+.ib-opt:hover { background: var(--s3); color: var(--text); }
+.ib-opt.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ib-label { font-size: 11px; color: var(--muted); user-select: none; }
 /* Hide message action buttons for queued messages — they are irrelevant and overlap queue controls on short texts */
 .mw:has(.msg-queued) .use-btn,
 .mw:has(.msg-queued) .reply-btn,
@@ -2677,6 +2688,11 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
       </div>
       <button class="reply-preview-close" onclick="clearReply()" data-i18n-title="reply.cancel" title="Cancel reply">✕</button>
     </div>
+    <div id="interruptBar" class="interrupt-bar hidden">
+      <span class="ib-label" data-i18n="interrupt.label">Send as:</span>
+      <button class="ib-opt active" data-mode="interrupt" onclick="setInterruptMode('interrupt')" data-i18n="interrupt.stream">📩 Clarify current</button>
+      <button class="ib-opt" data-mode="queue" onclick="setInterruptMode('queue')" data-i18n="interrupt.queue">📝 New task (queue)</button>
+    </div>
     <div class="iw">
       <button class="attach-btn" type="button" onclick="$i('filePickerInput').click()" data-i18n-title="attach.file" title="Додати файл" aria-label="Attach file">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -3231,6 +3247,7 @@ button:focus-visible, a:focus-visible { border-radius: 5px; }
 let ws = null, isGen = false, currentSessionId = null, generatingTabId = null;
 let replyTo = null; // { id, role, content }
 let openTabs = [], activeTabId = null;
+let interruptSendMode = 'interrupt'; // 'interrupt' = clarify current task, 'queue' = new task in queue
 const tabState = {}; // per-tab: { curEl, curTxt, currentSessionId, generating, draft, agentStatus, _toolCounts, _toolLog }
 function getTS(id) {
   if (!tabState[id]) tabState[id] = { curEl: null, curTxt: '', _thinkingTxt: '', currentSessionId: null, generating: false, draft: '', attachments: [], replyTo: null, agentStatus: '', _toolCounts: {}, _toolLog: [] };
@@ -3516,6 +3533,8 @@ const TRANSLATIONS = {
     'chip.remove':'Видалити',
     'attach.file':'Додати файл (📎)',
     'queue.label':'У черзі','queue.edit.title':'Редагувати повідомлення','queue.del.title':'Видалити з черги',
+    'interrupt.label':'Відправити як:','interrupt.stream':'📩 Уточнити поточне','interrupt.queue':'📝 Нове завдання (черга)',
+    'interrupt.queued':'Чекає доставки','interrupt.delivered':'Доставлено до Claude',
     'agents.title':'Активні агенти',
     'sess.delete.confirm':'Видалити сесію?','sess.delete.tasks':'Видалити сесію?\n\nДо неї прив\'язано завдань у Kanban: {n}. Вони також будуть видалені.','sess.load.err':'Помилка завантаження сесії',
     'mcp.active':'● Активний у чаті','mcp.inactive':'○ Вимкнений','mcp.del.title':'Видалити сервер','mcp.del.confirm':'Видалити сервер',
@@ -3739,6 +3758,8 @@ const TRANSLATIONS = {
     'chip.remove':'Remove',
     'attach.file':'Attach file (📎)',
     'queue.label':'In queue','queue.edit.title':'Edit message','queue.del.title':'Remove from queue',
+    'interrupt.label':'Send as:','interrupt.stream':'📩 Clarify current','interrupt.queue':'📝 New task (queue)',
+    'interrupt.queued':'Queued for delivery','interrupt.delivered':'Delivered to Claude',
     'agents.title':'Active agents',
     'sess.delete.confirm':'Delete session?','sess.delete.tasks':'Delete session?\n\nLinked Kanban tasks: {n}. They will also be deleted.','sess.load.err':'Error loading session',
     'mcp.active':'● Active in chat','mcp.inactive':'○ Disabled','mcp.del.title':'Remove server','mcp.del.confirm':'Remove server',
@@ -3962,6 +3983,8 @@ const TRANSLATIONS = {
     'chip.remove':'Удалить',
     'attach.file':'Прикрепить файл (📎)',
     'queue.label':'В очереди','queue.edit.title':'Редактировать сообщение','queue.del.title':'Удалить из очереди',
+    'interrupt.label':'Отправить как:','interrupt.stream':'📩 Уточнить текущее','interrupt.queue':'📝 Новая задача (очередь)',
+    'interrupt.queued':'Ожидает доставки','interrupt.delivered':'Доставлено в Claude',
     'agents.title':'Активные агенты',
     'sess.delete.confirm':'Удалить сессию?','sess.delete.tasks':'Удалить сессию?\n\nПривязанных задач в Kanban: {n}. Они также будут удалены.','sess.load.err':'Ошибка загрузки сессии',
     'mcp.active':'● Активен в чате','mcp.inactive':'○ Отключен','mcp.del.title':'Удалить сервер','mcp.del.confirm':'Удалить сервер',
@@ -5277,6 +5300,29 @@ function handleWsMsg(d) {
     case 'queue_edited':
       break;
 
+    case 'interrupt_queued':
+      // Server confirmed interrupt was stored — map server interruptId to the badge
+      if (d.interruptId && d.tabId) {
+        // Match the FIRST unmatched badge (FIFO: server processes in order)
+        const badges = msgsEl.querySelectorAll('.msg-interrupt:not(.matched)');
+        if (badges.length) {
+          badges[0].dataset.interruptId = String(d.interruptId);
+          badges[0].classList.add('matched');
+        }
+      }
+      break;
+
+    case 'interrupt_delivered':
+      // Claude consumed the interrupt via check_user_messages MCP tool
+      if (d.interruptId) {
+        const badge = msgsEl.querySelector(`.msg-interrupt[data-interrupt-id="${CSS.escape(String(d.interruptId))}"]`);
+        if (badge) {
+          badge.classList.add('delivered');
+          badge.querySelector('.mq-label').textContent = t('interrupt.delivered') || 'Delivered to Claude';
+        }
+      }
+      break;
+
     case 'queue_start':
       // Only modify DOM if this event is for the currently visible tab
       if (d.tabId && d.tabId !== activeTabId) break;
@@ -5612,10 +5658,29 @@ function _rlClear() {
 
 function setSendStop(generating) {
   const stopBtn = $i('stopBtn');
+  const interruptBar = $i('interruptBar');
   if (generating) {
     stopBtn.classList.remove('hidden');
+    if (interruptBar) {
+      interruptBar.classList.remove('hidden');
+      // Sync button active states with interruptSendMode (may have been reset)
+      for (const btn of interruptBar.querySelectorAll('.ib-opt')) {
+        btn.classList.toggle('active', btn.dataset.mode === interruptSendMode);
+      }
+    }
   } else {
     stopBtn.classList.add('hidden');
+    if (interruptBar) interruptBar.classList.add('hidden');
+    interruptSendMode = 'interrupt'; // reset to default for next time
+  }
+}
+
+function setInterruptMode(mode) {
+  interruptSendMode = mode;
+  const bar = $i('interruptBar');
+  if (!bar) return;
+  for (const btn of bar.querySelectorAll('.ib-opt')) {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
   }
 }
 
@@ -7622,6 +7687,22 @@ async function send() {
   const activeTab = openTabs.find(t => t.id === activeTabId);
   const tabIsGenerating = activeTab?.generating || false;
 
+  if (tabIsGenerating && interruptSendMode === 'interrupt') {
+    // ─── Mid-task interrupt: send clarification to running Claude process ───
+    const badge = document.createElement('div');
+    badge.className = 'msg-interrupt';
+    badge.dataset.interruptId = queueId;
+    badge.innerHTML = `<span class="mq-label">${t('interrupt.queued') || 'Queued for delivery'}</span>`;
+    msgEl.appendChild(badge);
+
+    ws.send(JSON.stringify({
+      type: 'interrupt',
+      text: finalTxt || ' ',
+      tabId: activeTabId,
+    }));
+    return;
+  }
+
   if (tabIsGenerating) {
     const q = document.createElement('div');
     q.className = 'msg-queued';
@@ -8087,7 +8168,15 @@ function _renderMsgAt(idx, prepend = false) {
     w.querySelector('.msg').innerHTML = renderMd(m.content);
   } else {
     w.querySelector('.msg').textContent = m.content;
-    if (hasReply) { const a = document.createElement('div'); a.className = 'msg-ack'; a.textContent = '✓'; w.appendChild(a); }
+    if (m.type === 'interrupt') {
+      // Interrupt messages from history — show delivered badge
+      const iBadge = document.createElement('div');
+      iBadge.className = 'msg-interrupt delivered matched';
+      iBadge.innerHTML = `<span class="mq-label">${t('interrupt.delivered') || 'Delivered to Claude'}</span>`;
+      w.appendChild(iBadge);
+    } else if (hasReply) {
+      const a = document.createElement('div'); a.className = 'msg-ack'; a.textContent = '✓'; w.appendChild(a);
+    }
   }
   // Render tool activity summary for historical assistant messages
   if (m.role === 'assistant' && m._tools) {
