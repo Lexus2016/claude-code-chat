@@ -62,7 +62,7 @@ function pragmaShim(db, str) {
  */
 function transactionShim(db, fn) {
   return function (...args) {
-    db.exec('BEGIN');
+    db.exec('BEGIN IMMEDIATE');
     try {
       const result = fn(...args);
       db.exec('COMMIT');
@@ -107,12 +107,17 @@ module.exports = function openDatabase(dbPath) {
       );
     }
     db = new Database(dbPath);
-    // better-sqlite3 already has .pragma() and .transaction() natively
+    // better-sqlite3 already has .pragma() natively.
+    // Wrap .transaction() to use BEGIN IMMEDIATE by default — prevents
+    // write contention under WAL mode (same as the node:sqlite shim above).
+    const _origTransaction = db.transaction.bind(db);
+    db.transaction = (fn) => _origTransaction(fn).immediate;
   }
 
   // Apply standard pragmas (same for both backends)
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');   // WAL durability guarantees make FULL unnecessary
+  db.pragma('busy_timeout = 5000');    // Retry on SQLITE_BUSY for up to 5 seconds
   db.pragma('cache_size = -32000');    // 32 MB page cache
   db.pragma('temp_store = MEMORY');    // Temp tables in RAM
   db.pragma('foreign_keys = ON');      // Enforce FK constraints

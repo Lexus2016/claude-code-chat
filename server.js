@@ -802,6 +802,7 @@ const taskBuffers = new Map();     // taskId → accumulated text (for late subs
 const chatBuffers = new Map();     // sessionId → accumulated text for direct chat (for catch-up on reconnect)
 const MAX_CHAT_BUFFER = 2 * 1024 * 1024; // 2 MB cap per session — prevents unbounded growth
 const sessionQueues = new Map();   // sessionId → [msg, ...] — queue persistence across WS reconnects (page refresh)
+const activeChatSessions = new Set(); // Cross-connection lock: prevents two WS connections from running processChat on the same session
 const sessionQueueCleanupTimers = new Map(); // sessionId → setTimeout handle — delayed cleanup to survive WS reconnect race
 
 // ─── Ask User (Internal MCP) ─────────────────────────────────────────────
@@ -1834,8 +1835,15 @@ function addAutoDiscoveredSkills(config) {
   return merged;
 }
 
+/** Write to temp file then atomic rename — prevents partial reads on concurrent access. */
+function atomicWriteJSON(filePath, data) {
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, filePath);
+}
+
 function saveConfig(c) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(c, null, 2));
+  atomicWriteJSON(CONFIG_PATH, c);
   _mergedConfigCache = null; // invalidate on every write
   _skillContentCache.clear(); // skill files may have changed
   _systemPromptCache.clear(); // prompts depend on skill content
@@ -2107,7 +2115,7 @@ async function classifyTask(userMessage, currentSkills, config, workdir) {
 // PROJECTS
 // ============================================
 function loadProjects() { try { return JSON.parse(fs.readFileSync(PROJECTS_FILE, 'utf-8')); } catch { return []; } }
-function saveProjects(p) { const d=path.dirname(PROJECTS_FILE); if(!fs.existsSync(d)) fs.mkdirSync(d,{recursive:true}); fs.writeFileSync(PROJECTS_FILE, JSON.stringify(p, null, 2)); }
+function saveProjects(p) { const d=path.dirname(PROJECTS_FILE); if(!fs.existsSync(d)) fs.mkdirSync(d,{recursive:true}); atomicWriteJSON(PROJECTS_FILE, p); }
 
 /**
  * Get notification context (session title + project name) for enriching notification payloads.
@@ -2132,7 +2140,7 @@ function getNotificationContext(sessionId) {
 }
 
 function loadRemoteHosts() { try { return JSON.parse(fs.readFileSync(REMOTE_HOSTS_FILE, 'utf-8')); } catch { return []; } }
-function saveRemoteHosts(h) { const d=path.dirname(REMOTE_HOSTS_FILE); if(!fs.existsSync(d)) fs.mkdirSync(d,{recursive:true}); fs.writeFileSync(REMOTE_HOSTS_FILE, JSON.stringify(h, null, 2)); }
+function saveRemoteHosts(h) { const d=path.dirname(REMOTE_HOSTS_FILE); if(!fs.existsSync(d)) fs.mkdirSync(d,{recursive:true}); atomicWriteJSON(REMOTE_HOSTS_FILE, h); }
 
 // ─── SSH password encryption (AES-256-GCM, persistent key) ───────────────────
 // Key is generated once and stored in data/hosts.key (600 perms).
@@ -5069,7 +5077,9 @@ async function processTelegramChat({ sessionId, text, userId, chatId, threadId, 
   if (!telegramBot) return;
 
   // Check if session is busy — show actionable navigation instead of dead-end text
-  if (activeTasks.has(sessionId)) {
+  // activeTasks covers both web and Telegram chat workers; activeChatSessions covers
+  // the early phase of web processChat before activeTasks.set() is called.
+  if (activeTasks.has(sessionId) || activeChatSessions.has(sessionId)) {
     const busyButtons = threadId
       ? { reply_markup: JSON.stringify({ inline_keyboard: [
           [{ text: '🛑 Stop', callback_data: 'cm:stop' }, { text: '📄 Full', callback_data: 'cm:full' }],
@@ -6022,8 +6032,8 @@ wss.on('connection', (ws) => {
     const tabId = msg.tabId || null;
     const proxy = new WsProxy(ws); // buffers output when browser disconnects
 
-    // Mark this tab as busy
-    if (tabId) ws._tabBusy[tabId] = true;
+    // Mark this tab as busy (per-connection + cross-connection)
+    if (tabId) { ws._tabBusy[tabId] = true; activeChatSessions.add(tabId); }
     else ws._busy = true;
 
     // Track OUR abort controller so finally can detect if a stop+new processChat
@@ -6075,6 +6085,7 @@ wss.on('connection', (ws) => {
       // Migrate _tabBusy/_tabAbort keys from tempId to real session id
       if (tabId && tabId !== localSessionId) {
         ws._tabBusy[localSessionId] = true; delete ws._tabBusy[tabId];
+        activeChatSessions.add(localSessionId); activeChatSessions.delete(tabId);
         if (ws._tabQueue[tabId]) {
           const q = ws._tabQueue[tabId];
           // Fix: update tabId + sessionId in queued messages so they continue in the same session,
@@ -6354,6 +6365,7 @@ wss.on('connection', (ws) => {
         : ws._abort !== myAbortController);
       if (!isStale && effectiveTabId) {
         ws._tabBusy[effectiveTabId] = false;
+        activeChatSessions.delete(effectiveTabId);
         delete ws._tabAbort[effectiveTabId];
         const tabQ = ws._tabQueue[effectiveTabId] || [];
         if (tabQ.length > 0) {
@@ -6375,7 +6387,9 @@ wss.on('connection', (ws) => {
             for (const liveWs of watchers) {
               if (liveWs !== ws && liveWs.readyState === 1 &&
                   liveWs._tabQueue?.[effectiveTabId]?.length > 0 &&
-                  !liveWs._tabBusy?.[effectiveTabId]) {
+                  !liveWs._tabBusy?.[effectiveTabId] &&
+                  !activeChatSessions.has(effectiveTabId) &&
+                  !activeTasks.has(effectiveTabId)) {
                 liveWs.emit('message', JSON.stringify({ type: '_dequeue_next', tabId: effectiveTabId }));
                 break;
               }
@@ -6438,7 +6452,7 @@ wss.on('connection', (ws) => {
       if (!tabId) return;
       // Guard: session may have been deleted while dequeue was pending
       if (!stmts.getSession.get(tabId)) { sessionQueues.delete(tabId); return; }
-      if (ws._tabQueue[tabId]?.length > 0 && !ws._tabBusy[tabId]) {
+      if (ws._tabQueue[tabId]?.length > 0 && !ws._tabBusy[tabId] && !activeChatSessions.has(tabId) && !activeTasks.has(tabId)) {
         const next = ws._tabQueue[tabId].shift();
         if (ws._tabQueue[tabId].length === 0) { delete ws._tabQueue[tabId]; sessionQueues.delete(tabId); }
         ws.send(queuePayload(tabId));
@@ -6450,8 +6464,10 @@ wss.on('connection', (ws) => {
     if (msg.type==='chat') {
       const tabId = msg.tabId || null;
       if (tabId) {
-        // Per-tab concurrency: queue if this specific tab is busy
-        if (ws._tabBusy[tabId]) {
+        // Per-tab concurrency: queue if this specific tab is busy (same WS connection),
+        // another WS connection is processing this session (activeChatSessions), or
+        // a Telegram/task worker is processing this session (activeTasks).
+        if (ws._tabBusy[tabId] || activeChatSessions.has(tabId) || activeTasks.has(tabId)) {
           if (!ws._tabQueue[tabId]) {
             ws._tabQueue[tabId] = sessionQueues.get(tabId) || [];
             sessionQueues.set(tabId, ws._tabQueue[tabId]);
@@ -6521,6 +6537,7 @@ wss.on('connection', (ws) => {
         // The stale finally guard in processChat prevents the old finally from
         // resetting _tabBusy after a new processChat has already started.
         ws._tabBusy[tabId] = false;
+        activeChatSessions.delete(tabId);
         if (ws._tabQueue) ws._tabQueue[tabId] = [];
         sessionQueues.delete(tabId);
         pendingInterrupts.delete(tabId);
@@ -6749,7 +6766,7 @@ wss.on('connection', (ws) => {
           ws.send(queuePayload(sessionId));
           // If the session is idle (task already finished while WS was disconnected),
           // immediately start processing the first queued item.
-          if (!ws._tabBusy[sessionId] && !activeTasks.has(sessionId)) {
+          if (!ws._tabBusy[sessionId] && !activeTasks.has(sessionId) && !activeChatSessions.has(sessionId)) {
             setImmediate(() => {
               if (ws.readyState === 1) {
                 ws.emit('message', JSON.stringify({ type: '_dequeue_next', tabId: sessionId }));
