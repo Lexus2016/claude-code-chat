@@ -5049,12 +5049,22 @@ function handleWsMsg(d) {
           }
         }
       }
-      // Mark undelivered interrupt badges as expired (task ended without Claude reading them)
+      // Reconcile interrupt badges: mark delivered/expired based on server-reported count.
+      // This guarantees correct state even if the real-time interrupt_delivered WS event was lost.
       if (tabId === activeTabId) {
+        const _dCount = d.deliveredInterruptCount || 0;
+        let _marked = 0;
         msgsEl.querySelectorAll('.msg-interrupt:not(.delivered):not(.expired)').forEach(b => {
-          b.classList.add('expired');
-          const lbl = b.querySelector('.mq-label');
-          if (lbl) lbl.textContent = t('interrupt.expired') || 'Task ended';
+          if (_marked < _dCount) {
+            b.classList.add('delivered');
+            const lbl = b.querySelector('.mq-label');
+            if (lbl) lbl.textContent = t('interrupt.delivered') || 'Delivered to Claude';
+            _marked++;
+          } else {
+            b.classList.add('expired');
+            const lbl = b.querySelector('.mq-label');
+            if (lbl) lbl.textContent = t('interrupt.expired') || 'Task ended';
+          }
         });
       }
       // For background tabs: clear saved streaming text (message is now persisted to DB)
@@ -5363,10 +5373,21 @@ function handleWsMsg(d) {
     case 'interrupt_delivered':
       // Claude consumed the interrupt via check_user_messages MCP tool
       if (d.interruptId) {
-        const badge = msgsEl.querySelector(`.msg-interrupt[data-interrupt-id="${CSS.escape(String(d.interruptId))}"]`);
+        const _iid = String(d.interruptId);
+        const badge = msgsEl.querySelector(`.msg-interrupt[data-interrupt-id="${CSS.escape(_iid)}"]`);
         if (badge) {
           badge.classList.add('delivered');
           badge.querySelector('.mq-label').textContent = t('interrupt.delivered') || 'Delivered to Claude';
+        } else {
+          // Fallback: badge not found by server interruptId — try matching unmatched badges
+          // (interrupt_queued may not have mapped the id yet)
+          const unmatched = msgsEl.querySelectorAll('.msg-interrupt:not(.delivered):not(.expired)');
+          if (unmatched.length) {
+            unmatched[0].classList.add('delivered');
+            unmatched[0].dataset.interruptId = _iid;
+            const lbl = unmatched[0].querySelector('.mq-label');
+            if (lbl) lbl.textContent = t('interrupt.delivered') || 'Delivered to Claude';
+          }
         }
       }
       break;

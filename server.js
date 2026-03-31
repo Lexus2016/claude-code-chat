@@ -3266,15 +3266,18 @@ app.post('/api/internal/user-interrupt', express.json(), (req, res) => {
   if (messages.length > 0) {
     pendingInterrupts.delete(sessionId);
 
-    // Persist delivery status in DB + notify UI
+    // Persist delivery status in DB + notify clients + track count for done-event reconciliation
+    const task = activeTasks.get(sessionId);
     for (const m of messages) {
       if (m.dbId) { try { stmts.markInterruptDelivered.run(m.dbId); } catch {} }
-    }
-    const task = activeTasks.get(sessionId);
-    if (task?.proxy) {
-      for (const m of messages) {
-        try { task.proxy.send(JSON.stringify({ type: 'interrupt_delivered', interruptId: m.id, tabId: sessionId })); } catch {}
+      const payload = JSON.stringify({ type: 'interrupt_delivered', interruptId: m.id, tabId: sessionId });
+      // Send via proxy (direct processChat connection) AND broadcast (all session watchers).
+      // Both are needed: proxy covers new sessions not yet subscribed; broadcast covers multi-tab.
+      if (task?.proxy) {
+        try { task.proxy.send(payload); } catch {}
+        task.proxy._deliveredInterruptCount = (task.proxy._deliveredInterruptCount || 0) + 1;
       }
+      broadcastToSession(sessionId, { type: 'interrupt_delivered', interruptId: m.id, tabId: sessionId });
     }
   }
 
@@ -6344,7 +6347,8 @@ wss.on('connection', (ws) => {
       // Clear fork flag after first successful CLI call — session now has its own claude_session_id
       if (_forkCid) { try { db.prepare(`UPDATE sessions SET fork_from_cid=NULL WHERE id=?`).run(localSessionId); } catch {} }
 
-      proxy.send(JSON.stringify({ type:'done', tabId: effectiveTabId, duration: Date.now() - _chatStartedAt, ...(resultMeta ? { resultMeta } : {}) }));
+      const _dic = proxy._deliveredInterruptCount || 0;
+      proxy.send(JSON.stringify({ type:'done', tabId: effectiveTabId, duration: Date.now() - _chatStartedAt, ...(resultMeta ? { resultMeta } : {}), ...(_dic ? { deliveredInterruptCount: _dic } : {}) }));
       proxy.send(JSON.stringify({ type:'files_changed' }));
       // Notify Telegram (if task was NOT started from Telegram — those get notified via TelegramProxy)
       if (telegramBot && telegramBot.isRunning()) {
@@ -6362,7 +6366,7 @@ wss.on('connection', (ws) => {
     } catch(err) {
       if(err.name==='AbortError') proxy.send(JSON.stringify({ type:'agent_status', status:'Stopped', statusKey:'status.stopped', tabId: effectiveTabId }));
       else { log.error('chat error', { message: err.message, name: err.name, stack: err.stack }); proxy.send(JSON.stringify({ type:'error', error:err.message, tabId: effectiveTabId })); }
-      proxy.send(JSON.stringify({ type:'done', tabId: effectiveTabId, duration: Date.now() - _chatStartedAt }));
+      { const _dic = proxy._deliveredInterruptCount || 0; proxy.send(JSON.stringify({ type:'done', tabId: effectiveTabId, duration: Date.now() - _chatStartedAt, ...(_dic ? { deliveredInterruptCount: _dic } : {}) })); }
       // Notify Telegram about error (if task was NOT started from Telegram)
       if (telegramBot && telegramBot.isRunning() && err.name !== 'AbortError') {
         const _tgTask = activeTasks.get(localSessionId);
