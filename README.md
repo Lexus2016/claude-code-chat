@@ -249,11 +249,13 @@ Add your own, edit them, delete them. As many as you want.
 
 ### ⚙️ Model & Turns
 
-| Model | Best for |
-|-------|----------|
-| **Haiku** | Fast — simple questions, quick checks |
-| **Sonnet** | Balanced (default) — most everyday tasks |
-| **Opus** | Most capable — complex architecture, hard bugs |
+| Model | Context | Best for |
+|-------|---------|----------|
+| **Haiku** | Standard | Fast — simple questions, quick checks |
+| **Sonnet** | **1M tokens** | Balanced (default) — most everyday tasks |
+| **Opus** | **1M tokens** | Most capable — complex architecture, hard bugs |
+
+Sonnet and Opus run with a **1 million token context window** — entire large codebases, long conversation histories, and massive file sets fit in a single session without hitting limits.
 
 Turn budget: 1–200 (default 50). Auto-continues up to 3x — so 50 turns effectively means up to 200 steps.
 
