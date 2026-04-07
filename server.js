@@ -1111,13 +1111,17 @@ async function startTask(task) {
         const MAX_CHAIN_RETRIES = 2;
 
         if (isSuccess) {
-          // ✅ Success
-          db.prepare(`UPDATE tasks SET status='done', failure_reason=NULL, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
-            .run(task.id);
+          // ✅ Success — recurring standalone tasks re-arm directly (skip intermediate 'done')
+          if (task.recurrence && !task.chain_id) {
+            db.prepare(`UPDATE tasks SET failure_reason=NULL, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
+              .run(task.id);
+            scheduleNextRun(task);
+          } else {
+            db.prepare(`UPDATE tasks SET status='done', failure_reason=NULL, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
+              .run(task.id);
+          }
           db.prepare(`UPDATE sessions SET retry_count=0 WHERE id=?`).run(sessionId);
-          log.info(`[taskWorker] task ${task.id}: done`);
-          // 🔄 Auto-schedule next occurrence for recurring tasks
-          scheduleNextRun(task);
+          log.info(`[taskWorker] task ${task.id}: ${task.recurrence && !task.chain_id ? 're-armed' : 'done'}`);
           // 🔗 Chain completion: check if all tasks in a manual chain are done
           if (task.chain_id) {
             try {
@@ -1194,7 +1198,7 @@ async function startTask(task) {
           }
           // Cascade cancel of dependents happens in next processQueue() run
           // 🔄 Recurring tasks: schedule next run even after failure (fresh session)
-          scheduleNextRun(task, { inheritSession: false });
+          scheduleNextRun(task);
         }
       } else {
         // User manually stopped — mark as user_cancelled, cascade will follow
@@ -1202,7 +1206,7 @@ async function startTask(task) {
           .run(task.id);
         log.info(`[taskWorker] task ${task.id}: stopped by user`);
         // 🔄 Recurring tasks: stopping one run should not kill the entire schedule
-        scheduleNextRun(task, { inheritSession: false });
+        scheduleNextRun(task);
       }
     } catch (e) {
       console.error(`[taskWorker] task ${task.id} onDone DB error:`, e);
@@ -1222,7 +1226,7 @@ async function startTask(task) {
       } else {
         db.prepare(`UPDATE tasks SET status='cancelled', failure_reason=?, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`).run(failureMsg, task.id);
         // 🔄 Recurring tasks: schedule next run even after exception (fresh session)
-        scheduleNextRun(task, { inheritSession: false });
+        scheduleNextRun(task);
       }
     } catch {}
     // Send done so the client doesn't wait forever for an event that will never arrive.
@@ -1245,7 +1249,7 @@ function calcNextRun(scheduled_at, recurrence) {
   return Math.floor(d.getTime() / 1000);
 }
 
-function scheduleNextRun(task, { inheritSession = true } = {}) {
+function scheduleNextRun(task) {
   if (!task.recurrence || !task.scheduled_at) return;
   const now = Math.floor(Date.now() / 1000);
   // Find next future occurrence — handles server downtime gaps gracefully.
@@ -1259,18 +1263,13 @@ function scheduleNextRun(task, { inheritSession = true } = {}) {
     log.info(`[schedule] Recurrence series ended for "${task.title}"`);
     return;
   }
-  const newId = genId();
-  stmts.createTask.run(
-    newId, task.title, task.description || '', task.notes || '', 'todo', task.sort_order || 0,
-    inheritSession ? (task.session_id || null) : null, task.workdir || null, task.model || 'sonnet',
-    task.mode || 'auto', task.agent_mode || 'single', task.max_turns || 30,
-    null, null, null, null,
-    next, task.recurrence, task.recurrence_end_at || null
-  );
-  log.info(`[schedule] Next run queued: "${task.title}" → ${new Date(next * 1000).toISOString()}`);
+  // Re-arm: reset same task to 'todo' with next scheduled_at (no cloning)
+  db.prepare(`UPDATE tasks SET status='todo', scheduled_at=?, session_id=NULL, failure_reason=NULL, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
+    .run(next, task.id);
+  log.info(`[schedule] Re-armed: "${task.title}" → ${new Date(next * 1000).toISOString()}`);
 }
 
-// Clone entire chain + tasks for recurring chain execution
+// Re-arm entire chain + tasks for recurring chain execution
 function scheduleNextChainRun(chain, oldTasks) {
   if (!chain.recurrence || !chain.scheduled_at) return;
   const now = Math.floor(Date.now() / 1000);
@@ -1281,39 +1280,22 @@ function scheduleNextChainRun(chain, oldTasks) {
   if (chain.recurrence_end_at && next > chain.recurrence_end_at) {
     log.info(`[schedule] Chain recurrence ended: "${chain.title}"`); return;
   }
-  const newChainId = genId();
   const newSessionId = genId();
   db.transaction(() => {
-    // Create new session for next run
+    // Fresh shared session for next chain run
     stmts.createSession.run(newSessionId, chain.title, '[]', '[]',
       chain.mode || 'auto', chain.agent_mode || 'single', chain.model || 'sonnet',
       chain.workdir || null);
-    // Clone chain
-    stmts.createChain.run(newChainId, chain.title, chain.workdir || null,
-      chain.model || 'sonnet', chain.mode || 'auto', chain.agent_mode || 'single',
-      chain.max_turns || 30, newSessionId, next, chain.recurrence,
-      chain.recurrence_end_at || null, chain.source_session_id || null, chain.sort_order || 0);
-    // Clone tasks with new IDs, re-map depends_on
-    const idMap = {};
-    for (const t of oldTasks) idMap[t.id] = genId();
-    for (let i = 0; i < oldTasks.length; i++) {
-      const t = oldTasks[i];
-      const newId = idMap[t.id];
-      let newDeps = null;
-      if (t.depends_on) {
-        try {
-          const deps = JSON.parse(t.depends_on).map(d => idMap[d]).filter(Boolean);
-          if (deps.length) newDeps = JSON.stringify(deps);
-        } catch {}
-      }
-      stmts.createTask.run(newId, t.title, t.description || '', t.notes || '', 'todo',
-        i * 1000, newSessionId, chain.workdir || null, chain.model || 'sonnet',
-        chain.mode || 'auto', chain.agent_mode || 'single', chain.max_turns || 30,
-        null, newDeps, newChainId, chain.source_session_id || null,
-        next, null, null);
+    // Re-arm chain with next scheduled_at + new session
+    db.prepare(`UPDATE task_chains SET scheduled_at=?, session_id=?, updated_at=datetime('now') WHERE id=?`)
+      .run(next, newSessionId, chain.id);
+    // Re-arm all tasks back to 'todo' with shared session
+    for (const t of oldTasks) {
+      db.prepare(`UPDATE tasks SET status='todo', scheduled_at=?, session_id=?, failure_reason=NULL, worker_pid=NULL, task_retry_count=0, updated_at=datetime('now') WHERE id=?`)
+        .run(next, newSessionId, t.id);
     }
   })();
-  log.info(`[schedule] Chain next run queued: "${chain.title}" → ${new Date(next * 1000).toISOString()}, ${oldTasks.length} tasks cloned`);
+  log.info(`[schedule] Chain re-armed: "${chain.title}" → ${new Date(next * 1000).toISOString()}, ${oldTasks.length} tasks reset`);
 }
 
 function processQueue() {
@@ -1440,14 +1422,20 @@ setTimeout(() => {
         `SELECT id FROM messages WHERE session_id=? AND role='assistant' AND type='text' LIMIT 1`
       ).get(task.session_id);
       if (assistantMsg) {
-        newStatus = 'done'; // completed before/during restart
-        // 🔄 Recurring tasks: ensure next run is scheduled after crash recovery
-        if (task.recurrence) scheduleNextRun(task);
+        if (task.recurrence) {
+          // 🔄 Recurring: re-arm sets status='todo' + next scheduled_at, skip overwrite below
+          scheduleNextRun(task);
+          newStatus = null; // signal: already handled
+        } else {
+          newStatus = 'done'; // completed before/during restart
+        }
       }
     }
-    db.prepare(`UPDATE tasks SET status=?, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
-      .run(newStatus, task.id);
-    console.log(`[startup] recovered task "${task.title}" (${task.id}): in_progress → ${newStatus}`);
+    if (newStatus) {
+      db.prepare(`UPDATE tasks SET status=?, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
+        .run(newStatus, task.id);
+    }
+    console.log(`[startup] recovered task "${task.title}" (${task.id}): in_progress → ${newStatus || 're-armed'}`);
   }
   processQueue();
 }, 3000);

@@ -152,6 +152,8 @@ Create a task, set a time — Claude runs it exactly when needed. No cron, no sc
 - **Recurring:** hourly, daily, weekly, monthly — with optional end date
 - **Up to 5 parallel workers** — missed times after restart are skipped gracefully
 
+Recurring tasks are **re-armed in place** — the same task record resets to the next scheduled time after each run, instead of creating a new database row. Task IDs stay stable across recurrences, the database doesn't grow unbounded, and crash recovery correctly re-arms interrupted recurring tasks instead of marking them done.
+
 Color-coded agenda: overdue (red), today (orange), upcoming (blue), recurring (purple). **Run Now** button for instant testing.
 
 ### 🤖 Autonomous Task Manager
