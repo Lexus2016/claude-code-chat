@@ -154,6 +154,8 @@ Create a task, set a time — Claude runs it exactly when needed. No cron, no sc
 
 Recurring tasks are **re-armed in place** — the same task record resets to the next scheduled time after each run, instead of creating a new database row. Task IDs stay stable across recurrences, the database doesn't grow unbounded, and crash recovery correctly re-arms interrupted recurring tasks instead of marking them done.
 
+A **60-second watchdog** scans for tasks stuck in `in_progress` with no live worker — if a worker crashed without cleanup, the watchdog recovers the task automatically (re-arms recurring, resets one-shot to `todo`). The task creation form pre-fills the date/time to **right now** — no blank picker to fill in before scheduling.
+
 Color-coded agenda: overdue (red), today (orange), upcoming (blue), recurring (purple). **Run Now** button for instant testing.
 
 ### 🤖 Autonomous Task Manager

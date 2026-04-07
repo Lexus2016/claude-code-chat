@@ -1112,16 +1112,13 @@ async function startTask(task) {
 
         if (isSuccess) {
           // ✅ Success — recurring standalone tasks re-arm directly (skip intermediate 'done')
-          if (task.recurrence && !task.chain_id) {
-            db.prepare(`UPDATE tasks SET failure_reason=NULL, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
-              .run(task.id);
-            scheduleNextRun(task);
-          } else {
+          const reArmed = (task.recurrence && !task.chain_id) ? scheduleNextRun(task) : false;
+          if (!reArmed) {
             db.prepare(`UPDATE tasks SET status='done', failure_reason=NULL, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
               .run(task.id);
           }
           db.prepare(`UPDATE sessions SET retry_count=0 WHERE id=?`).run(sessionId);
-          log.info(`[taskWorker] task ${task.id}: ${task.recurrence && !task.chain_id ? 're-armed' : 'done'}`);
+          log.info(`[taskWorker] task ${task.id}: ${reArmed ? 're-armed' : 'done'}`);
           // 🔗 Chain completion: check if all tasks in a manual chain are done
           if (task.chain_id) {
             try {
@@ -1132,7 +1129,7 @@ async function startTask(task) {
                 if (allDone) {
                   db.prepare(`UPDATE task_chains SET updated_at=datetime('now') WHERE id=?`).run(task.chain_id);
                   log.info(`[taskWorker] chain ${task.chain_id} completed: all ${allChainTasks.length} tasks done`);
-                  if (chain.recurrence && chain.scheduled_at) {
+                  if (chain.recurrence) {
                     scheduleNextChainRun(chain, allChainTasks);
                   }
                 } else {
@@ -1249,31 +1246,34 @@ function calcNextRun(scheduled_at, recurrence) {
   return Math.floor(d.getTime() / 1000);
 }
 
+// Returns true if task was re-armed, false if series ended or skipped.
 function scheduleNextRun(task) {
-  if (!task.recurrence || !task.scheduled_at) return;
+  if (!task.recurrence) return false;
   const now = Math.floor(Date.now() / 1000);
-  // Find next future occurrence — handles server downtime gaps gracefully.
-  // Cap iterations to prevent runaway loops for very old tasks.
-  let next = calcNextRun(task.scheduled_at, task.recurrence);
+  // If no scheduled_at (recurring without fixed date), calculate next from now
+  const baseTime = task.scheduled_at || now;
+  let next = calcNextRun(baseTime, task.recurrence);
   let guard = 0;
   while (next <= now && guard < 10000) { next = calcNextRun(next, task.recurrence); guard++; }
-  if (guard >= 10000) { log.warn(`[schedule] Too many iterations for "${task.title}", skipping`); return; }
+  if (guard >= 10000) { log.warn(`[schedule] Too many iterations for "${task.title}", skipping`); return false; }
   // Respect end date
   if (task.recurrence_end_at && next > task.recurrence_end_at) {
     log.info(`[schedule] Recurrence series ended for "${task.title}"`);
-    return;
+    return false;
   }
   // Re-arm: reset same task to 'todo' with next scheduled_at (no cloning)
   db.prepare(`UPDATE tasks SET status='todo', scheduled_at=?, session_id=NULL, failure_reason=NULL, worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
     .run(next, task.id);
   log.info(`[schedule] Re-armed: "${task.title}" → ${new Date(next * 1000).toISOString()}`);
+  return true;
 }
 
 // Re-arm entire chain + tasks for recurring chain execution
 function scheduleNextChainRun(chain, oldTasks) {
-  if (!chain.recurrence || !chain.scheduled_at) return;
+  if (!chain.recurrence) return;
   const now = Math.floor(Date.now() / 1000);
-  let next = calcNextRun(chain.scheduled_at, chain.recurrence);
+  const baseTime = chain.scheduled_at || now;
+  let next = calcNextRun(baseTime, chain.recurrence);
   let guard = 0;
   while (next <= now && guard < 10000) { next = calcNextRun(next, chain.recurrence); guard++; }
   if (guard >= 10000) { log.warn(`[schedule] Chain recurrence too many iterations: "${chain.title}"`); return; }
@@ -1422,9 +1422,8 @@ setTimeout(() => {
         `SELECT id FROM messages WHERE session_id=? AND role='assistant' AND type='text' LIMIT 1`
       ).get(task.session_id);
       if (assistantMsg) {
-        if (task.recurrence) {
+        if (task.recurrence && scheduleNextRun(task)) {
           // 🔄 Recurring: re-arm sets status='todo' + next scheduled_at, skip overwrite below
-          scheduleNextRun(task);
           newStatus = null; // signal: already handled
         } else {
           newStatus = 'done'; // completed before/during restart
@@ -1439,6 +1438,25 @@ setTimeout(() => {
   }
   processQueue();
 }, 3000);
+
+// Watchdog: detect tasks stuck in 'in_progress' with no live worker process.
+// Runs every 60s. If a task is in_progress in DB but not in taskRunning (memory),
+// the worker died without cleanup — recover the task.
+setInterval(() => {
+  const inProg = stmts.getInProgressTasks.all();
+  for (const task of inProg) {
+    if (taskRunning.has(task.id)) continue; // worker is alive
+    // Worker is dead — recover
+    log.warn(`[watchdog] task "${task.title}" (${task.id}) stuck in_progress with no live worker, recovering`);
+    if (task.worker_pid) killByPid(task.worker_pid);
+    const recovered = task.recurrence ? scheduleNextRun(task) : false;
+    if (!recovered) {
+      db.prepare(`UPDATE tasks SET status='todo', worker_pid=NULL, updated_at=datetime('now') WHERE id=?`)
+        .run(task.id);
+    }
+    if (task.session_id) broadcastToSession(task.session_id, { type: 'done', tabId: task.session_id, taskId: task.id });
+  }
+}, 60000);
 
 class WsProxy {
   constructor(ws) { this._ws = ws; this._buffer = []; }

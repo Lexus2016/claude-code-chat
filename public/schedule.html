@@ -1097,7 +1097,7 @@ function buildForm(tk={}) {
   const sessOpts = `<option value="">${t('form.no_session')}</option>` +
     sessions.map(s => `<option value="${s.id}"${tk.session_id===s.id?' selected':''}>${escH((s.title||s.id).substring(0,50))}</option>`).join('');
 
-  const dtVal = tk.scheduled_at ? toLocalDatetimeStr(tk.scheduled_at) : '';
+  const dtVal = tk.scheduled_at ? toLocalDatetimeStr(tk.scheduled_at) : toLocalDatetimeStr(Math.floor(Date.now() / 1000));
   const endDtVal = tk.recurrence_end_at ? toLocalDateStr(tk.recurrence_end_at) : '';
 
   return `
